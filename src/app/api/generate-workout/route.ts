@@ -543,12 +543,11 @@ async function generateWorkoutPlan(
     const maxTokens = retryCount === 0 ? 4000 : 2000;
     const temperature = retryCount === 0 ? 0.7 : 0.3; // Lower temperature for retries
     
-      const response = await openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model,
       messages,
       temperature,
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" }
+      max_tokens: maxTokens
     });
 
     const content = response.choices[0].message.content;
@@ -833,8 +832,7 @@ export async function POST(req: Request) {
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}.` }
         ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
+        temperature: 0.7
       });
 
       const content = response.choices[0].message.content;

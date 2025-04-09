@@ -324,8 +324,9 @@ function validateMealPlanInput(body: any): { isValid: boolean; error?: string } 
   return { isValid: true };
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
+    // Get the token from cookies
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
 
@@ -336,113 +337,90 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify token
+    // Verify token and get user
     const decoded = verify(token, JWT_SECRET) as { id: string };
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
 
     // Get request data
     const {
-      age,
       weight,
       height,
       goal,
       activityLevel,
-      dietaryRestrictions = [],
-      mealsPerDay
-    } = await request.json();
+      mealsPerDay,
+      restrictions = []
+    } = await req.json();
 
-    // If OpenAI is not available, use fallback meal plan
-    if (!openai) {
-      console.log('Using fallback meal plan - OpenAI not initialized');
-      const fallbackPlan = generateFallbackMealPlan(
-        age,
-        weight,
-        height,
-        goal,
-        activityLevel,
-        dietaryRestrictions,
-        mealsPerDay
+    // Validate required fields
+    if (!weight || !height || !goal || !activityLevel || !mealsPerDay) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
       );
-
-      // Save the fallback plan to the database
-      const savedPlan = await prisma.mealPlan.create({
-        data: {
-          userId: decoded.id,
-          name: fallbackPlan.name,
-          description: fallbackPlan.description,
-          meals: [fallbackPlan],
-          goal: String(goal || 'MAINTAIN'),
-          mealsPerDay: parseInt(mealsPerDay),
-          dietaryRestrictions: dietaryRestrictions,
-        },
-      });
-
-      return NextResponse.json({
-        mealPlan: fallbackPlan,
-        message: 'Using fallback meal plan (OpenAI API not configured)',
-        planId: savedPlan.id,
-      });
     }
 
-    // Calculate BMR and TDEE
-    const bmr = calculateBMR(parseFloat(weight), parseFloat(height), parseInt(age));
-    const tdee = calculateTDEE(bmr, activityLevel);
-    const targetCalories = calculateTargetCalories(tdee, goal);
+    // Calculate BMI and daily calorie needs
+    const bmi = calculateBMI(parseFloat(weight), parseFloat(height));
+    const bmiCategory = getBMICategory(bmi);
+    const dailyCalories = calculateDailyCalories(
+      parseFloat(weight),
+      parseFloat(height),
+      activityLevel,
+      goal
+    );
 
-    // Prepare the prompt
-    const userPrompt = `Create a personalized meal plan with the following requirements:
-- Age: ${age} years
-- Weight: ${weight} kg
-- Height: ${height} cm
-- Goal: ${goal}
-- Activity Level: ${activityLevel}
-- Dietary Restrictions: ${dietaryRestrictions.join(', ') || 'None'}
-- Meals per Day: ${mealsPerDay}
-- Target Daily Calories: ${targetCalories}
+    // Generate the system prompt
+    const systemPrompt = generateSystemPrompt(
+      dailyCalories,
+      mealsPerDay,
+      goal,
+      restrictions,
+      bmiCategory
+    );
 
-Please ensure the meal plan:
-1. Meets the daily caloric target of ${targetCalories} calories
-2. Is appropriate for the activity level and goals
-3. Respects all dietary restrictions
-4. Includes exactly ${mealsPerDay} meals per day
-5. Provides detailed nutritional information
-6. Includes easy-to-follow preparation instructions`;
+    // Check if OpenAI client is available
+    if (!openai) {
+      throw new Error('OpenAI client is not initialized');
+    }
 
     try {
-      console.log('Generating meal plan with OpenAI...');
+      // Make the API call to OpenAI
       const response = await openai.chat.completions.create({
         model: "gpt-4",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+          { role: "user", content: `Generate a meal plan for ${mealsPerDay} meals per day, targeting ${dailyCalories} calories, with a focus on ${goal}. Consider BMI category: ${bmiCategory} and dietary restrictions: ${restrictions.join(', ') || 'none'}.` }
         ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
+        temperature: 0.7
       });
 
       const content = response.choices[0].message.content;
       if (!content) {
-        throw new Error('OpenAI returned empty response');
+        throw new Error('No content received from OpenAI');
       }
 
-      // Parse and validate the response
+      // Parse the response
       const mealPlan = JSON.parse(content);
-      
-      // Basic validation
-      if (!mealPlan.days || !Array.isArray(mealPlan.days) || mealPlan.days.length === 0) {
-        throw new Error('Invalid meal plan format: missing or empty days array');
-      }
 
-      // Save the plan to the database
-      const savedPlan = await prisma.mealPlan.create({
-        data: {
-          userId: decoded.id,
-          name: mealPlan.name,
-          description: mealPlan.description,
-          meals: [mealPlan],
-          goal: String(goal || 'MAINTAIN'),
-          mealsPerDay: parseInt(mealsPerDay),
-          dietaryRestrictions: dietaryRestrictions,
-        },
+      // Save the meal plan to the database
+      const savedPlan = await savePlanToDatabase(mealPlan, decoded.id, {
+        bmi,
+        bmiCategory,
+        dailyCalories,
+        goal,
+        activityLevel,
+        mealsPerDay,
+        restrictions
       });
 
       return NextResponse.json({
@@ -492,4 +470,68 @@ function calculateTargetCalories(tdee: number, goal: string): number {
     default:
       return Math.round(tdee); // maintenance
   }
+}
+
+function calculateBMI(weight: number, height: number): number {
+  // BMI formula: weight (kg) / (height (m) ^ 2)
+  const heightInMeters = height / 100;
+  return weight / (heightInMeters * heightInMeters);
+}
+
+function getBMICategory(bmi: number): string {
+  if (bmi < 18.5) {
+    return 'Underweight';
+  } else if (bmi >= 18.5 && bmi < 24.9) {
+    return 'Normal weight';
+  } else if (bmi >= 25 && bmi < 29.9) {
+    return 'Overweight';
+  } else {
+    return 'Obesity';
+  }
+}
+
+function calculateDailyCalories(weight: number, height: number, activityLevel: string, goal: string): number {
+  // BMR calculation
+  const bmr = calculateBMR(weight, height, 25); // Using a default age of 25
+  const tdee = calculateTDEE(bmr, activityLevel);
+
+  // Adjust based on the goal
+  switch (goal.toLowerCase()) {
+    case 'weight loss':
+      return Math.round(tdee * 0.8); // 20% deficit
+    case 'weight gain':
+      return Math.round(tdee * 1.2); // 20% surplus
+    default:
+      return Math.round(tdee); // maintenance
+  }
+}
+
+function generateSystemPrompt(
+  dailyCalories: number,
+  mealsPerDay: number,
+  goal: string,
+  restrictions: string[],
+  bmiCategory: string
+): string {
+  // Implement the logic to generate a system prompt based on the given parameters
+  // This is a placeholder and should be replaced with the actual implementation
+  return `You are a professional nutritionist creating a meal plan for ${mealsPerDay} meals per day, targeting ${dailyCalories} calories, with a focus on ${goal}. Consider BMI category: ${bmiCategory} and dietary restrictions: ${restrictions.join(', ')}`;
+}
+
+async function savePlanToDatabase(
+  mealPlan: any,
+  userId: string,
+  planData: any
+) {
+  return await prisma.mealPlan.create({
+    data: {
+      userId,
+      name: mealPlan.name || `${planData.goal} Meal Plan`,
+      description: mealPlan.description || `Custom meal plan targeting ${planData.dailyCalories} calories per day`,
+      meals: [mealPlan],
+      goal: String(planData.goal || 'MAINTAIN'),
+      mealsPerDay: planData.mealsPerDay,
+      dietaryRestrictions: planData.restrictions || []
+    }
+  });
 } 
