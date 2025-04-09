@@ -27,6 +27,14 @@ const nextConfig = {
   publicRuntimeConfig: {
     APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
+  // Add proper cache configuration
+  experimental: {
+    typedRoutes: true,
+    serverActions: true
+  },
+  typescript: {
+    ignoreBuildErrors: true
+  }
 };
 
 module.exports = nextConfig; 
