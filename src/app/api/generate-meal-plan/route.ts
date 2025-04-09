@@ -361,6 +361,7 @@ export async function POST(request: Request) {
 
     // If OpenAI is not available, use fallback meal plan
     if (!openai) {
+      console.log('Using fallback meal plan - OpenAI not initialized');
       const fallbackPlan = generateFallbackMealPlan(
         age,
         weight,
@@ -391,58 +392,114 @@ export async function POST(request: Request) {
       });
     }
 
-    // Generate meal plan with OpenAI
-    const userPrompt = `Create a personalized meal plan for someone with the following characteristics:
-- Age: ${age}
-- Weight: ${weight}
-- Height: ${height}
+    // Calculate BMR and TDEE
+    const bmr = calculateBMR(parseFloat(weight), parseFloat(height), parseInt(age));
+    const tdee = calculateTDEE(bmr, activityLevel);
+    const targetCalories = calculateTargetCalories(tdee, goal);
+
+    // Prepare the prompt
+    const userPrompt = `Create a personalized meal plan with the following requirements:
+- Age: ${age} years
+- Weight: ${weight} kg
+- Height: ${height} cm
 - Goal: ${goal}
 - Activity Level: ${activityLevel}
-- Dietary Restrictions: ${dietaryRestrictions.join(', ')}
+- Dietary Restrictions: ${dietaryRestrictions.join(', ') || 'None'}
 - Meals per Day: ${mealsPerDay}
+- Target Daily Calories: ${targetCalories}
 
-Please provide a detailed meal plan that:
-1. Matches their caloric needs
-2. Supports their fitness goals
-3. Respects their dietary restrictions
-4. Includes the specified number of meals per day
-5. Provides variety and is sustainable long-term`;
+Please ensure the meal plan:
+1. Meets the daily caloric target of ${targetCalories} calories
+2. Is appropriate for the activity level and goals
+3. Respects all dietary restrictions
+4. Includes exactly ${mealsPerDay} meals per day
+5. Provides detailed nutritional information
+6. Includes easy-to-follow preparation instructions`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
+    try {
+      console.log('Generating meal plan with OpenAI...');
+      const response = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
 
-    const mealPlanData = JSON.parse(completion.choices[0].message.content || '{}');
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('OpenAI returned empty response');
+      }
 
-    // Save the generated plan to the database
-    const savedPlan = await prisma.mealPlan.create({
-      data: {
-        userId: decoded.id,
-        name: mealPlanData.name,
-        description: mealPlanData.description,
-        meals: [mealPlanData],
-        goal: String(goal || 'MAINTAIN'),
-        mealsPerDay: parseInt(mealsPerDay),
-        dietaryRestrictions: dietaryRestrictions,
-      },
-    });
+      // Parse and validate the response
+      const mealPlan = JSON.parse(content);
+      
+      // Basic validation
+      if (!mealPlan.days || !Array.isArray(mealPlan.days) || mealPlan.days.length === 0) {
+        throw new Error('Invalid meal plan format: missing or empty days array');
+      }
 
-    return NextResponse.json({
-      mealPlan: mealPlanData,
-      planId: savedPlan.id,
-    });
-  } catch (error) {
-    console.error('Error generating meal plan:', error);
+      // Save the plan to the database
+      const savedPlan = await prisma.mealPlan.create({
+        data: {
+          userId: decoded.id,
+          name: mealPlan.name,
+          description: mealPlan.description,
+          meals: [mealPlan],
+          goal: String(goal || 'MAINTAIN'),
+          mealsPerDay: parseInt(mealsPerDay),
+          dietaryRestrictions: dietaryRestrictions,
+        },
+      });
+
+      return NextResponse.json({
+        mealPlan,
+        planId: savedPlan.id
+      });
+
+    } catch (error: any) {
+      console.error('Error generating meal plan:', error);
+      return NextResponse.json(
+        { error: `Failed to generate meal plan: ${error.message}` },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('Error in meal plan endpoint:', error);
     return NextResponse.json(
-      { error: 'Failed to generate meal plan' },
+      { error: error.message || 'Failed to process request' },
       { status: 500 }
     );
+  }
+}
+
+// Helper functions for calorie calculations
+function calculateBMR(weight: number, height: number, age: number): number {
+  // Mifflin-St Jeor Equation
+  return 10 * weight + 6.25 * height - 5 * age + 5;
+}
+
+function calculateTDEE(bmr: number, activityLevel: string): number {
+  const activityMultipliers: { [key: string]: number } = {
+    'Sedentary': 1.2,
+    'Light Activity': 1.375,
+    'Moderate Activity': 1.55,
+    'Very Active': 1.725,
+    'Extra Active': 1.9
+  };
+  return bmr * (activityMultipliers[activityLevel] || 1.2);
+}
+
+function calculateTargetCalories(tdee: number, goal: string): number {
+  switch (goal.toLowerCase()) {
+    case 'weight loss':
+      return Math.round(tdee * 0.8); // 20% deficit
+    case 'weight gain':
+      return Math.round(tdee * 1.2); // 20% surplus
+    default:
+      return Math.round(tdee); // maintenance
   }
 }
 

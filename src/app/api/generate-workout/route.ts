@@ -2216,7 +2216,7 @@ export async function POST(req: Request) {
     const token = cookieStore.get('token')?.value;
 
     if (!token) {
-        return NextResponse.json(
+      return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
@@ -2245,60 +2245,124 @@ export async function POST(req: Request) {
       height,
     } = await req.json();
 
+    // Validate required fields
+    if (!daysPerWeek || !goal || !fitnessLevel || !weight || !height) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
     // Calculate BMI
     const bmi = calculateBMI(parseFloat(weight), parseFloat(height));
     const bmiCategory = getBMICategory(bmi);
 
     // Check if OpenAI is available and properly initialized
-    const hasOpenAI = openai !== undefined && isOpenAIAvailable(openai);
+    if (!openai) {
+      console.log('OpenAI client not initialized, using fallback plan');
+      const fallbackPlan = generateFallbackPlan(
+        daysPerWeek,
+        goal,
+        fitnessLevel as FitnessLevel,
+        bmiCategory
+      );
 
-    // Generate workout plan
-    const workoutPlan = hasOpenAI && openai
-      ? await generateWorkoutPlan(
-          [
-            {
-              role: 'system',
-              content: generateSystemPrompt(daysPerWeek, goal, fitnessLevel as FitnessLevel, bmiCategory)
-            }
-          ],
-          0,
-          daysPerWeek,
-          goal,
-          fitnessLevel as FitnessLevel,
-          bmiCategory
-        )
-      : generateFallbackPlan(
-          daysPerWeek,
-          goal,
-          fitnessLevel as FitnessLevel,
-          bmiCategory
-        );
+      // Save fallback plan
+      const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
+        bmi,
+        bmiCategory,
+        fitnessLevel,
+        goal,
+        daysPerWeek
+      });
 
-    // Save the workout plan to the database
-    const savedPlan = await prisma.workoutPlan.create({
-      data: {
-        userId: decoded.id,
-        name: workoutPlan.name,
-        description: workoutPlan.description,
-        exercises: [JSON.parse(JSON.stringify(workoutPlan))],
-        bmi: bmi,
-        bmiCategory: bmiCategory,
-        fitnessLevel: fitnessLevel,
-        goal: goal,
-        daysPerWeek: parseInt(daysPerWeek),
-      },
-    });
+      return NextResponse.json({
+        workoutPlan: fallbackPlan,
+        planId: savedPlan.id,
+        message: 'Using fallback workout plan (OpenAI not configured)'
+      });
+    }
 
-    return NextResponse.json({
-      workoutPlan: workoutPlan,
-      planId: savedPlan.id,
-      message: hasOpenAI ? undefined : 'Using fallback workout plan (OpenAI API not configured)',
-    });
-  } catch (error) {
-    console.error('Error:', error);
+    try {
+      console.log('Generating workout plan with OpenAI...');
+      const systemPrompt = generateSystemPrompt(daysPerWeek, goal, fitnessLevel as FitnessLevel, bmiCategory);
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}.` }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('OpenAI returned empty response');
+      }
+
+      // Parse and validate the response
+      const workoutPlan = JSON.parse(content);
+      
+      // Validate workout plan structure
+      if (!workoutPlan.days || !Array.isArray(workoutPlan.days)) {
+        throw new Error('Invalid workout plan format: missing or invalid days array');
+      }
+
+      if (workoutPlan.days.length !== parseInt(daysPerWeek)) {
+        throw new Error(`Invalid workout plan: expected ${daysPerWeek} days but got ${workoutPlan.days.length}`);
+      }
+
+      // Save the plan to the database
+      const savedPlan = await savePlanToDatabase(workoutPlan, decoded.id, {
+        bmi,
+        bmiCategory,
+        fitnessLevel,
+        goal,
+        daysPerWeek
+      });
+
+      return NextResponse.json({
+        workoutPlan,
+        planId: savedPlan.id
+      });
+
+    } catch (error: any) {
+      console.error('Error generating workout plan:', error);
+      return NextResponse.json(
+        { error: `Failed to generate workout plan: ${error.message}` },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('Error in workout plan endpoint:', error);
     return NextResponse.json(
-      { error: 'Failed to generate workout plan' },
+      { error: error.message || 'Failed to process request' },
       { status: 500 }
     );
   }
+}
+
+// Helper function to save plan to database
+async function savePlanToDatabase(plan: any, userId: string, metadata: {
+  bmi: number;
+  bmiCategory: string;
+  fitnessLevel: string;
+  goal: string;
+  daysPerWeek: string;
+}) {
+  return await prisma.workoutPlan.create({
+    data: {
+      userId: userId,
+      name: plan.name,
+      description: plan.description,
+      exercises: [plan],
+      bmi: metadata.bmi,
+      bmiCategory: metadata.bmiCategory,
+      fitnessLevel: metadata.fitnessLevel,
+      goal: metadata.goal,
+      daysPerWeek: parseInt(metadata.daysPerWeek)
+    },
+  });
 } 
