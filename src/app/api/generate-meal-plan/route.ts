@@ -395,13 +395,24 @@ export async function POST(req: Request) {
 
     try {
       // Make the API call to OpenAI
+      const messages: ChatCompletionMessageParam[] = [
+        { 
+          role: "system", 
+          content: "You are a professional nutritionist. You MUST respond with ONLY valid JSON, no other text. The JSON should follow this structure: { name: string, description: string, days: Array<{ meals: Array<{ name: string, foods: Array<string>, calories: number }> }> }"
+        },
+        { 
+          role: "user", 
+          content: `Generate a meal plan for ${mealsPerDay} meals per day, targeting ${dailyCalories} calories, with a focus on ${goal}. Consider BMI category: ${bmiCategory} and dietary restrictions: ${restrictions.join(', ') || 'none'}. RESPOND WITH ONLY JSON.` 
+        }
+      ];
+
+      console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
+
       const response = await openai.chat.completions.create({
         model: "gpt-4",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a meal plan for ${mealsPerDay} meals per day, targeting ${dailyCalories} calories, with a focus on ${goal}. Consider BMI category: ${bmiCategory} and dietary restrictions: ${restrictions.join(', ') || 'none'}.` }
-        ],
-        temperature: 0.7
+        messages,
+        temperature: 0.7,
+        max_tokens: 4000
       });
 
       const content = response.choices[0].message.content;
@@ -409,24 +420,34 @@ export async function POST(req: Request) {
         throw new Error('No content received from OpenAI');
       }
 
-      // Parse the response
-      const mealPlan = JSON.parse(content);
+      console.log('Received response from OpenAI:', content.substring(0, 500));
 
-      // Save the meal plan to the database
-      const savedPlan = await savePlanToDatabase(mealPlan, decoded.id, {
-        bmi,
-        bmiCategory,
-        dailyCalories,
-        goal,
-        activityLevel,
-        mealsPerDay,
-        restrictions
-      });
+      try {
+        // Try to parse the JSON response
+        const mealPlan = JSON.parse(content.trim());
+        console.log('Successfully parsed JSON response');
 
-      return NextResponse.json({
-        mealPlan,
-        planId: savedPlan.id
-      });
+        // Save the meal plan to the database
+        const savedPlan = await savePlanToDatabase(mealPlan, decoded.id, {
+          bmi,
+          bmiCategory,
+          dailyCalories,
+          goal,
+          activityLevel,
+          mealsPerDay,
+          restrictions
+        });
+
+        return NextResponse.json({
+          mealPlan,
+          planId: savedPlan.id
+        });
+
+      } catch (parseError) {
+        console.error('Failed to parse OpenAI response:', parseError);
+        console.error('Raw content:', content);
+        throw new Error('Failed to parse meal plan response from OpenAI');
+      }
 
     } catch (error: any) {
       console.error('Error generating meal plan:', error);

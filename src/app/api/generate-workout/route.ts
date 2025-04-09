@@ -824,15 +824,24 @@ export async function POST(req: Request) {
 
     try {
       console.log('Generating workout plan with OpenAI...');
-      const systemPrompt = generateSystemPrompt(daysPerWeek, goal, fitnessLevel as FitnessLevel, bmiCategory);
+      const messages: ChatCompletionMessageParam[] = [
+        { 
+          role: "system", 
+          content: "You are a professional fitness trainer. You MUST respond with ONLY valid JSON, no other text. The workout plan should follow this structure: { name: string, description: string, days: Array<{ name: string, focus: string, exercises: Array<{ name: string, sets: number, reps: string, rest: string }>, warmup: { duration: string, exercises: Array<{ name: string, duration: string }> }, cooldown: { duration: string, exercises: Array<{ name: string, duration: string }> } }> }"
+        },
+        { 
+          role: "user", 
+          content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}. RESPOND WITH ONLY JSON.` 
+        }
+      ];
+
+      console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
       
       const response = await openai.chat.completions.create({
         model: "gpt-4",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}.` }
-        ],
-        temperature: 0.7
+        messages,
+        temperature: 0.7,
+        max_tokens: 4000
       });
 
       const content = response.choices[0].message.content;
@@ -840,31 +849,41 @@ export async function POST(req: Request) {
         throw new Error('OpenAI returned empty response');
       }
 
-      // Parse and validate the response
-      const workoutPlan = JSON.parse(content);
-      
-      // Validate workout plan structure
-      if (!workoutPlan.days || !Array.isArray(workoutPlan.days)) {
-        throw new Error('Invalid workout plan format: missing or invalid days array');
+      console.log('Received response from OpenAI:', content.substring(0, 500));
+
+      try {
+        // Try to parse the JSON response
+        const workoutPlan = JSON.parse(content.trim());
+        console.log('Successfully parsed JSON response');
+        
+        // Validate workout plan structure
+        if (!workoutPlan.days || !Array.isArray(workoutPlan.days)) {
+          throw new Error('Invalid workout plan format: missing or invalid days array');
+        }
+
+        if (workoutPlan.days.length !== parseInt(daysPerWeek)) {
+          throw new Error(`Invalid workout plan: expected ${daysPerWeek} days but got ${workoutPlan.days.length}`);
+        }
+
+        // Save the plan to the database
+        const savedPlan = await savePlanToDatabase(workoutPlan, decoded.id, {
+          bmi,
+          bmiCategory,
+          fitnessLevel,
+          goal,
+          daysPerWeek
+        });
+
+        return NextResponse.json({
+          workoutPlan,
+          planId: savedPlan.id
+        });
+
+      } catch (parseError) {
+        console.error('Failed to parse OpenAI response:', parseError);
+        console.error('Raw content:', content);
+        throw new Error('Failed to parse workout plan response from OpenAI');
       }
-
-      if (workoutPlan.days.length !== parseInt(daysPerWeek)) {
-        throw new Error(`Invalid workout plan: expected ${daysPerWeek} days but got ${workoutPlan.days.length}`);
-      }
-
-      // Save the plan to the database
-      const savedPlan = await savePlanToDatabase(workoutPlan, decoded.id, {
-        bmi,
-        bmiCategory,
-        fitnessLevel,
-        goal,
-        daysPerWeek
-      });
-
-      return NextResponse.json({
-        workoutPlan,
-        planId: savedPlan.id
-      });
 
     } catch (error: any) {
       console.error('Error generating workout plan:', error);
