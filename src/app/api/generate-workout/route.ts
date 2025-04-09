@@ -5,11 +5,29 @@ import { OpenAI } from 'openai';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
+import { openai } from '@/lib/openai';  // Import our centralized OpenAI client
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'neurafit-secret-key-2024-secure-and-unique';
+
+// Types for workout generation
+type Exercise = {
+  name: string;
+  sets: number;
+  reps: number;
+  restTime: string;
+  description?: string;
+};
+
+type WarmUpCoolDown = {
+  name: string;
+  duration: string;
+  description?: string;
+};
+
+type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
 // Initialize OpenAI with proper type definition
 const openai: OpenAI | undefined = process.env.OPENAI_API_KEY 

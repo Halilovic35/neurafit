@@ -19,8 +19,14 @@ try {
       apiKey: apiKey,
       baseURL: isProjectKey ? 'https://api.proxyapi.io/openai/v1' : 'https://api.openai.com/v1',
       defaultHeaders: isProjectKey ? {
-        'Authorization': `Bearer ${apiKey}`
-      } : undefined
+        'Authorization': `Bearer ${apiKey}`,
+        'X-Project-ID': apiKey.split('-')[2] // Extract project ID from key
+      } : undefined,
+      defaultQuery: isProjectKey ? {
+        'api-version': '2024-02-15'
+      } : undefined,
+      timeout: 30000, // 30 second timeout
+      maxRetries: 3
     };
 
     openai = new OpenAI(config);
