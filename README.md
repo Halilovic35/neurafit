@@ -4,6 +4,18 @@ NeuraFit is a modern, AI-powered fitness platform that provides personalized wor
 
 ## Features
 
+### 🔐 User Login
+
+Upon logging in, users get access to:
+- AI Chatbot for real-time advice
+- Personalized workout generator
+- Meal plan customization and suggestions
+- Full dashboard for tracking all fitness metrics
+
+### 🔑 Test Account
+- Email: admin@neurafit.com
+- Password: Admin123!
+
 ### 🤖 AI Chatbot
 - Real-time fitness and nutrition advice
 - Personalized recommendations based on user goals
@@ -124,6 +136,13 @@ neurafit/
 
 We welcome contributions! Please feel free to submit a Pull Request.
 
+## Support
+
+If you encounter any issues or have questions, please feel free to:
+- File an issue on GitHub
+- Contact us directly at haallilovic@gmail.com
+- Join our community discussions
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -134,7 +153,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Vercel for hosting and deployment
 - The Next.js team for the amazing framework
 - The open-source community for various tools and libraries
-
-## Support
-
-If you encounter any issues or have questions, please file an issue on GitHub or contact our support team.
