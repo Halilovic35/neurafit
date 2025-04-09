@@ -12,21 +12,203 @@ export const dynamic = 'force-dynamic'
 const JWT_SECRET = process.env.JWT_SECRET || 'neurafit-secret-key-2024-secure-and-unique';
 
 // Types for workout generation
+type BMICategory = 'underweight' | 'normal' | 'overweight' | 'obese';
+type FocusArea = 'Full Body' | 'Upper Body & Core' | 'Lower Body & Core' | 'Endurance & Cardio';
+
 type Exercise = {
   name: string;
   sets: number;
   reps: number;
   restTime: string;
   description?: string;
+  difficulty?: string;
+  equipment?: string[];
+  muscles?: string[];
+  setup?: string;
+  execution?: {
+    starting_position: string;
+    movement: string;
+    breathing: string;
+    tempo: string;
+    form_cues: string[];
+  };
+  progression?: {
+    next_steps: string;
+    variations: string[];
+    scaling_options: string[];
+  };
 };
 
 type WarmUpCoolDown = {
   name: string;
   duration: string;
   description?: string;
+  purpose?: string;
 };
 
 type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
+
+type WorkoutDay = {
+  name: string;
+  focus: string;
+  exercises: Exercise[];
+  warmup: {
+    duration: string;
+    exercises: WarmUpCoolDown[];
+  };
+  cooldown: {
+    duration: string;
+    exercises: WarmUpCoolDown[];
+  };
+  notes?: string;
+};
+
+type WorkoutPlan = {
+  name: string;
+  description: string;
+  days: WorkoutDay[];
+  goal?: string;
+  level?: FitnessLevel;
+  daysPerWeek?: number;
+  equipment?: string[];
+  notes?: string;
+  tips?: string[];
+};
+
+// Basic exercise database by focus area and fitness level
+const exercisesByFocus: Record<FocusArea, Record<FitnessLevel, Exercise[]>> = {
+  'Full Body': {
+    beginner: [
+      {
+        name: 'Bodyweight Squats',
+        sets: 3,
+        reps: 10,
+        restTime: '60 seconds',
+        description: 'Basic squat movement'
+      }
+    ],
+    intermediate: [
+      {
+        name: 'Push-Ups',
+        sets: 3,
+        reps: 12,
+        restTime: '60 seconds',
+        description: 'Standard push-up'
+      }
+    ],
+    advanced: [
+      {
+        name: 'Burpees',
+        sets: 4,
+        reps: 15,
+        restTime: '45 seconds',
+        description: 'Full body explosive movement'
+      }
+    ]
+  },
+  'Upper Body & Core': {
+    beginner: [
+      {
+        name: 'Wall Push-Ups',
+        sets: 3,
+        reps: 10,
+        restTime: '60 seconds',
+        description: 'Modified push-up against wall'
+      }
+    ],
+    intermediate: [
+      {
+        name: 'Diamond Push-Ups',
+        sets: 3,
+        reps: 12,
+        restTime: '60 seconds',
+        description: 'Push-up with hands forming diamond shape'
+      }
+    ],
+    advanced: [
+      {
+        name: 'Handstand Push-Ups',
+        sets: 3,
+        reps: 8,
+        restTime: '90 seconds',
+        description: 'Advanced upper body push exercise'
+      }
+    ]
+  },
+  'Lower Body & Core': {
+    beginner: [
+      {
+        name: 'Lunges',
+        sets: 3,
+        reps: 10,
+        restTime: '60 seconds',
+        description: 'Basic lunge movement'
+      }
+    ],
+    intermediate: [
+      {
+        name: 'Jump Squats',
+        sets: 3,
+        reps: 15,
+        restTime: '60 seconds',
+        description: 'Explosive squat jump'
+      }
+    ],
+    advanced: [
+      {
+        name: 'Pistol Squats',
+        sets: 3,
+        reps: 8,
+        restTime: '90 seconds',
+        description: 'Single leg squat'
+      }
+    ]
+  },
+  'Endurance & Cardio': {
+    beginner: [
+      {
+        name: 'Walking',
+        sets: 1,
+        reps: 20,
+        restTime: '60 seconds',
+        description: 'Brisk walking'
+      }
+    ],
+    intermediate: [
+      {
+        name: 'Jogging',
+        sets: 1,
+        reps: 20,
+        restTime: '60 seconds',
+        description: 'Steady state jogging'
+      }
+    ],
+    advanced: [
+      {
+        name: 'Sprinting',
+        sets: 6,
+        reps: 30,
+        restTime: '90 seconds',
+        description: 'High intensity sprints'
+      }
+    ]
+  }
+};
+
+// Helper function to calculate BMI
+function calculateBMI(weight: number, height: number): number {
+  // Convert height from cm to meters
+  const heightInMeters = height / 100;
+  return weight / (heightInMeters * heightInMeters);
+}
+
+// Helper function to get BMI category
+function getBMICategory(bmi: number): BMICategory {
+  if (bmi < 18.5) return 'underweight';
+  if (bmi < 25) return 'normal';
+  if (bmi < 30) return 'overweight';
+  return 'obese';
+}
 
 // ... existing code ...
 
@@ -487,11 +669,11 @@ function getExercisesForFocusArea(focusArea: FocusArea, fitnessLevel: FitnessLev
   return selected;
 }
 
-function generateWarmup(focusArea: FocusArea): WarmupCooldown {
+function generateWarmup(focusArea: FocusArea): { duration: string; exercises: WarmUpCoolDown[] } {
   return {
     duration: "10 minutes",
-            exercises: [
-              {
+    exercises: [
+      {
         name: "Light Jogging in Place",
         duration: "2 minutes",
         description: "Start with a light jog to increase heart rate",
@@ -513,11 +695,11 @@ function generateWarmup(focusArea: FocusArea): WarmupCooldown {
   };
 }
 
-function generateCooldown(focusArea: FocusArea): WarmupCooldown {
+function generateCooldown(focusArea: FocusArea): { duration: string; exercises: WarmUpCoolDown[] } {
   return {
     duration: "5-10 minutes",
-            exercises: [
-              {
+    exercises: [
+      {
         name: "Light Walking",
         duration: "2-3 minutes",
         description: "Walk in place or around the room",
@@ -564,8 +746,8 @@ async function ensureDefaultUser() {
 }
 
 // Update the type guard function
-function isOpenAIAvailable(client: OpenAI | undefined): client is OpenAI {
-  return client !== undefined && process.env.OPENAI_API_KEY !== undefined;
+function isOpenAIAvailable(client: typeof openai): client is NonNullable<typeof openai> {
+  return client !== null && client !== undefined;
 }
 
 export async function POST(req: Request) {
