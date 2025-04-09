@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "MealPlan" ALTER COLUMN "dietaryRestrictions" DROP DEFAULT,
+ALTER COLUMN "goal" DROP DEFAULT,
+ALTER COLUMN "mealsPerDay" DROP DEFAULT;

@@ -1,0 +1,9 @@
+src/app/api/**/*
+src/app/dashboard/**/*
+src/app/profile/**/*
+src/app/workouts/**/*
+src/components/**/*
+src/contexts/**/*
+src/lib/**/*
+src/services/**/*
+src/middleware.ts 

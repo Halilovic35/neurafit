@@ -1,0 +1,128 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  password      String
+  name          String?
+  role          String       @default("USER")
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  profile       Profile?
+  subscription  Subscription?
+  workoutPlans  WorkoutPlan[]
+  mealPlans     MealPlan[]
+  completedWorkouts CompletedWorkout[]
+  badges        UserBadge[]
+  workoutHistory WorkoutHistory[]
+  currentLevel  String       @default("beginner")
+  weeksCompleted Int         @default(0)
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  name        String?
+  height      Float?
+  weight      Float?
+  age         Int?
+  gender      String?
+  goals       String?
+  experience  String?
+  imageUrl    String?
+  updatedAt   DateTime  @updatedAt
+}
+
+model Subscription {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  isPremium   Boolean   @default(false)
+  plan        String?
+  status      String?
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+}
+
+model WorkoutPlan {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String
+  description String?
+  exercises   Json[]
+  bmi         Float
+  bmiCategory String
+  fitnessLevel String
+  goal        String
+  daysPerWeek Int
+}
+
+model MealPlan {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String
+  description String?
+  meals       Json[]
+  goal        String
+  mealsPerDay Int
+  dietaryRestrictions String[]
+}
+
+model UserBadge {
+  id          String   @id @default(cuid())
+  userId      String
+  badgeType   String
+  earnedAt    DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, badgeType])
+  @@index([userId])
+}
+
+model WorkoutHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  workoutPlanId String
+  startDate   DateTime
+  endDate     DateTime?
+  difficulty  String
+  status      String   @default("in_progress") // in_progress, completed, abandoned
+  user        User     @relation(fields: [userId], references: [id])
+  completedWorkouts CompletedWorkout[]
+
+  @@index([userId])
+  @@index([workoutPlanId])
+}
+
+model CompletedWorkout {
+  id          String   @id @default(cuid())
+  userId      String
+  workoutHistoryId String
+  dayIndex    Int
+  completedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+  workoutHistory WorkoutHistory @relation(fields: [workoutHistoryId], references: [id])
+
+  @@index([userId])
+  @@index([workoutHistoryId])
+}
