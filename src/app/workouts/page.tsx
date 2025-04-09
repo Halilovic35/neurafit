@@ -6,9 +6,7 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import ModelViewer from '@/components/ModelViewer';
 import type { Exercise, WorkoutPlan, WorkoutDay } from '@/types/workout';
-import { Form } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Form, Input, Select } from '@/components/ui';
 
 // Custom loading spinner component
 const LoadingSpinner = () => (
