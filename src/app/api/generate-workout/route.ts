@@ -751,227 +751,122 @@ function isOpenAIAvailable(client: typeof openai): client is NonNullable<typeof 
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
+    const body = await req.json();
+    const { age, height, weight, gender, goal, fitnessLevel, daysPerWeek } = body;
 
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Verify token and get user
-    const decoded = verify(token, JWT_SECRET) as { id: string };
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      include: { profile: true },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    // Get request data
-    const {
-      daysPerWeek,
-      goal,
-      fitnessLevel,
-      weight,
-      height,
-    } = await req.json();
-
-    // Validate required fields
-    if (!daysPerWeek || !goal || !fitnessLevel || !weight || !height) {
+    // Input validation
+    if (!age || !height || !weight || !gender || !goal || !fitnessLevel || !daysPerWeek) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Calculate BMI
-    const bmi = calculateBMI(parseFloat(weight), parseFloat(height));
+    // Convert numeric values
+    const numericAge = parseInt(age);
+    const numericHeight = parseFloat(height);
+    const numericWeight = parseFloat(weight);
+
+    // Validate numeric values
+    if (isNaN(numericAge) || isNaN(numericHeight) || isNaN(numericWeight)) {
+      return NextResponse.json(
+        { error: 'Invalid numeric values' },
+        { status: 400 }
+      );
+    }
+
+    // Calculate BMI and get category
+    const bmi = calculateBMI(numericWeight, numericHeight);
     const bmiCategory = getBMICategory(bmi);
 
-    // Check if OpenAI is available and properly initialized
-    if (!openai) {
-      console.log('OpenAI client not initialized, using fallback plan');
-      const fallbackPlan = generateFallbackPlan(
-        daysPerWeek,
-        goal,
-        fitnessLevel as FitnessLevel,
-        bmiCategory
+    // Generate system prompt
+    const systemPrompt = generateSystemPrompt(
+      daysPerWeek,
+      goal,
+      fitnessLevel as FitnessLevel,
+      bmiCategory
+    );
+
+    // Check if OpenAI client is available
+    if (!isOpenAIAvailable(openai)) {
+      console.error('OpenAI client not available');
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable' },
+        { status: 503 }
       );
-
-      // Save fallback plan
-      const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
-        bmi,
-        bmiCategory,
-        fitnessLevel,
-        goal,
-        daysPerWeek
-      });
-
-      return NextResponse.json({
-        workoutPlan: fallbackPlan,
-        planId: savedPlan.id,
-        message: 'Using fallback workout plan (OpenAI not configured)'
-      });
     }
 
     try {
-      console.log('Generating workout plan with OpenAI...');
-      const messages: ChatCompletionMessageParam[] = [
-        { 
-          role: "system", 
-          content: `You are a professional fitness trainer. You MUST respond with ONLY valid JSON, no other text. The workout plan should follow this EXACT structure:
-{
-  "name": "Name of the workout plan",
-  "description": "Description of the plan",
-  "days": [
-    {
-      "name": "Day 1: Focus Area",
-      "focus": "Main focus of the day",
-      "exercises": [
-        {
-          "name": "Exercise name",
-          "sets": 3,
-          "reps": "12-15",
-          "rest": "60 seconds",
-          "notes": "Form tips and instructions"
-        }
-      ],
-      "warmup": {
-        "duration": "10 minutes",
-        "exercises": [
-          {
-            "name": "Warmup exercise",
-            "duration": "2 minutes"
-          }
-        ]
-      },
-      "cooldown": {
-        "duration": "5 minutes",
-        "exercises": [
-          {
-            "name": "Cooldown exercise",
-            "duration": "2 minutes"
-          }
-        ]
-      }
-    }
-  ]
-}`
-        },
-        { 
-          role: "user", 
-          content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}. Each day MUST have at least 4 exercises. RESPOND WITH ONLY JSON.` 
-        }
-      ];
-
-      console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
-      
-      const response = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages,
-        temperature: 0.7,
-        max_tokens: 4000
+      // Set a timeout for the OpenAI request
+      const timeoutMs = 30000; // 30 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
       });
 
-      const content = response.choices[0].message.content;
-      if (!content) {
-        throw new Error('OpenAI returned empty response');
+      // Make the OpenAI request with retry logic
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const workoutPlanPromise = generateWorkoutPlan(
+            [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: `Generate a workout plan for a ${gender}, ${age} years old, ${height}cm tall, ${weight}kg person with ${fitnessLevel} fitness level, aiming for ${goal}, training ${daysPerWeek} days per week.`
+              }
+            ],
+            i,
+            daysPerWeek,
+            goal,
+            fitnessLevel as FitnessLevel,
+            bmiCategory
+          );
+
+          // Race between the workout plan generation and timeout
+          const workoutPlan = await Promise.race([workoutPlanPromise, timeoutPromise]);
+
+          // If we get here, the request succeeded
+          // Save plan to database
+          const userId = await ensureDefaultUser();
+          await savePlanToDatabase(workoutPlan, userId, {
+            bmi,
+            bmiCategory,
+            fitnessLevel,
+            goal,
+            daysPerWeek
+          });
+
+          return NextResponse.json(workoutPlan);
+        } catch (err) {
+          const error = err as Error;
+          lastError = error;
+          console.error(`Attempt ${i + 1} failed:`, error);
+          // Only continue retrying if it's not a timeout
+          if (error.message === 'Request timed out') {
+            break;
+          }
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
       }
 
-      console.log('Received response from OpenAI:', content);
-
-      try {
-        // Try to parse the JSON response
-        const workoutPlan = JSON.parse(content.trim());
-        console.log('Successfully parsed JSON response');
-        
-        // Validate workout plan structure
-        if (!workoutPlan.name || !workoutPlan.description) {
-          throw new Error('Invalid workout plan: missing name or description');
-        }
-
-        if (!workoutPlan.days || !Array.isArray(workoutPlan.days)) {
-          throw new Error('Invalid workout plan: missing or invalid days array');
-        }
-
-        if (workoutPlan.days.length !== parseInt(daysPerWeek)) {
-          throw new Error(`Invalid workout plan: expected ${daysPerWeek} days but got ${workoutPlan.days.length}`);
-        }
-
-        // Validate each day
-        workoutPlan.days.forEach((day: any, index: number) => {
-          if (!day.name || !day.focus) {
-            throw new Error(`Day ${index + 1} is missing name or focus`);
-          }
-          if (!day.exercises || !Array.isArray(day.exercises) || day.exercises.length < 4) {
-            throw new Error(`Day ${index + 1} must have at least 4 exercises`);
-          }
-          if (!day.warmup?.exercises || !day.cooldown?.exercises) {
-            throw new Error(`Day ${index + 1} is missing warmup or cooldown exercises`);
-          }
-        });
-
-        // Save the plan to the database
-        const savedPlan = await savePlanToDatabase(workoutPlan, decoded.id, {
-          bmi,
-          bmiCategory,
-          fitnessLevel,
-          goal,
-          daysPerWeek
-        });
-
-        return NextResponse.json({
-          workoutPlan,
-          planId: savedPlan.id
-        });
-
-      } catch (parseError) {
-        console.error('Failed to parse OpenAI response:', parseError);
-        console.error('Raw content:', content);
-        
-        // If parsing failed, try to use the fallback plan
-        console.log('Using fallback plan due to parsing error');
-        const fallbackPlan = generateFallbackPlan(
-          daysPerWeek,
-          goal,
-          fitnessLevel as FitnessLevel,
-          bmiCategory
-        );
-
-        const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
-          bmi,
-          bmiCategory,
-          fitnessLevel,
-          goal,
-          daysPerWeek
-        });
-
-        return NextResponse.json({
-          workoutPlan: fallbackPlan,
-          planId: savedPlan.id,
-          message: 'Using fallback workout plan due to parsing error'
-        });
-      }
-
-    } catch (error: any) {
+      // If we get here, all retries failed
+      throw lastError || new Error('Failed to generate workout plan');
+    } catch (err) {
+      const error = err as Error;
       console.error('Error generating workout plan:', error);
       return NextResponse.json(
         { error: `Failed to generate workout plan: ${error.message}` },
-        { status: 500 }
+        { status: error.message === 'Request timed out' ? 504 : 500 }
       );
     }
-  } catch (error: any) {
-    console.error('Error in workout plan endpoint:', error);
+  } catch (err) {
+    const error = err as Error;
+    console.error('Error processing request:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to process request' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

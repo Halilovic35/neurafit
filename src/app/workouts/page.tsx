@@ -43,6 +43,7 @@ export default function WorkoutsPage() {
     age: '',
     height: '',
     weight: '',
+    gender: '',
     goal: 'general-fitness',
     fitnessLevel: 'beginner',
     daysPerWeek: '3'
@@ -215,6 +216,7 @@ export default function WorkoutsPage() {
         age: parseInt(formData.age),
         height: parseFloat(formData.height),
         weight: parseFloat(formData.weight),
+        gender: formData.gender,
         goal: formData.goal,
         fitnessLevel: formData.fitnessLevel,
         daysPerWeek: formData.daysPerWeek
@@ -585,6 +587,19 @@ export default function WorkoutsPage() {
                 name="weight"
                 value={formData.weight}
                 onChange={(e) => handleInputChange('weight', e)}
+                required
+                isLoading={isLoading}
+              />
+
+              <Select
+                label="Gender"
+                value={formData.gender}
+                onChange={(value) => handleSelectChange('gender', value)}
+                options={[
+                  { value: 'male', label: 'Male' },
+                  { value: 'female', label: 'Female' },
+                  { value: 'other', label: 'Other' }
+                ]}
                 required
                 isLoading={isLoading}
               />
