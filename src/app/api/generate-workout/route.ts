@@ -827,11 +827,48 @@ export async function POST(req: Request) {
       const messages: ChatCompletionMessageParam[] = [
         { 
           role: "system", 
-          content: "You are a professional fitness trainer. You MUST respond with ONLY valid JSON, no other text. The workout plan should follow this structure: { name: string, description: string, days: Array<{ name: string, focus: string, exercises: Array<{ name: string, sets: number, reps: string, rest: string }>, warmup: { duration: string, exercises: Array<{ name: string, duration: string }> }, cooldown: { duration: string, exercises: Array<{ name: string, duration: string }> } }> }"
+          content: `You are a professional fitness trainer. You MUST respond with ONLY valid JSON, no other text. The workout plan should follow this EXACT structure:
+{
+  "name": "Name of the workout plan",
+  "description": "Description of the plan",
+  "days": [
+    {
+      "name": "Day 1: Focus Area",
+      "focus": "Main focus of the day",
+      "exercises": [
+        {
+          "name": "Exercise name",
+          "sets": 3,
+          "reps": "12-15",
+          "rest": "60 seconds",
+          "notes": "Form tips and instructions"
+        }
+      ],
+      "warmup": {
+        "duration": "10 minutes",
+        "exercises": [
+          {
+            "name": "Warmup exercise",
+            "duration": "2 minutes"
+          }
+        ]
+      },
+      "cooldown": {
+        "duration": "5 minutes",
+        "exercises": [
+          {
+            "name": "Cooldown exercise",
+            "duration": "2 minutes"
+          }
+        ]
+      }
+    }
+  ]
+}`
         },
         { 
           role: "user", 
-          content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}. RESPOND WITH ONLY JSON.` 
+          content: `Generate a ${daysPerWeek}-day workout plan for a ${fitnessLevel} level person with BMI category ${bmiCategory}, focusing on ${goal}. Each day MUST have at least 4 exercises. RESPOND WITH ONLY JSON.` 
         }
       ];
 
@@ -849,7 +886,7 @@ export async function POST(req: Request) {
         throw new Error('OpenAI returned empty response');
       }
 
-      console.log('Received response from OpenAI:', content.substring(0, 500));
+      console.log('Received response from OpenAI:', content);
 
       try {
         // Try to parse the JSON response
@@ -857,13 +894,30 @@ export async function POST(req: Request) {
         console.log('Successfully parsed JSON response');
         
         // Validate workout plan structure
+        if (!workoutPlan.name || !workoutPlan.description) {
+          throw new Error('Invalid workout plan: missing name or description');
+        }
+
         if (!workoutPlan.days || !Array.isArray(workoutPlan.days)) {
-          throw new Error('Invalid workout plan format: missing or invalid days array');
+          throw new Error('Invalid workout plan: missing or invalid days array');
         }
 
         if (workoutPlan.days.length !== parseInt(daysPerWeek)) {
           throw new Error(`Invalid workout plan: expected ${daysPerWeek} days but got ${workoutPlan.days.length}`);
         }
+
+        // Validate each day
+        workoutPlan.days.forEach((day: any, index: number) => {
+          if (!day.name || !day.focus) {
+            throw new Error(`Day ${index + 1} is missing name or focus`);
+          }
+          if (!day.exercises || !Array.isArray(day.exercises) || day.exercises.length < 4) {
+            throw new Error(`Day ${index + 1} must have at least 4 exercises`);
+          }
+          if (!day.warmup?.exercises || !day.cooldown?.exercises) {
+            throw new Error(`Day ${index + 1} is missing warmup or cooldown exercises`);
+          }
+        });
 
         // Save the plan to the database
         const savedPlan = await savePlanToDatabase(workoutPlan, decoded.id, {
@@ -882,7 +936,29 @@ export async function POST(req: Request) {
       } catch (parseError) {
         console.error('Failed to parse OpenAI response:', parseError);
         console.error('Raw content:', content);
-        throw new Error('Failed to parse workout plan response from OpenAI');
+        
+        // If parsing failed, try to use the fallback plan
+        console.log('Using fallback plan due to parsing error');
+        const fallbackPlan = generateFallbackPlan(
+          daysPerWeek,
+          goal,
+          fitnessLevel as FitnessLevel,
+          bmiCategory
+        );
+
+        const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
+          bmi,
+          bmiCategory,
+          fitnessLevel,
+          goal,
+          daysPerWeek
+        });
+
+        return NextResponse.json({
+          workoutPlan: fallbackPlan,
+          planId: savedPlan.id,
+          message: 'Using fallback workout plan due to parsing error'
+        });
       }
 
     } catch (error: any) {

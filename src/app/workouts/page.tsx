@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import ModelViewer from '@/components/ModelViewer';
 import type { Exercise, WorkoutPlan, WorkoutDay } from '@/types/workout';
+import { Form } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 // Custom loading spinner component
 const LoadingSpinner = () => (
@@ -532,6 +535,14 @@ export default function WorkoutsPage() {
     );
   };
 
+  const handleInputChange = (field: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [field]: e.target.value });
+  };
+
+  const handleSelectChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 pt-20 pb-8">
@@ -544,128 +555,83 @@ export default function WorkoutsPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">
               Generate Your Workout Plan
             </h1>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Age
-                </label>
-                <input
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="13"
-                  max="100"
-                />
-              </div>
+            <Form
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              error={error}
+              submitText="Generate Workout Plan"
+            >
+              <Input
+                label="Age"
+                type="number"
+                name="age"
+                value={formData.age}
+                onChange={(e) => handleInputChange('age', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Height (cm)
-                </label>
-                <input
-                  type="number"
-                  value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="100"
-                  max="250"
-                  step="0.1"
-                />
-              </div>
+              <Input
+                label="Height (cm)"
+                type="number"
+                name="height"
+                value={formData.height}
+                onChange={(e) => handleInputChange('height', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Weight (kg)
-                </label>
-                <input
-                  type="number"
-                  value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="30"
-                  max="300"
-                  step="0.1"
-                />
-              </div>
+              <Input
+                label="Weight (kg)"
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={(e) => handleInputChange('weight', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fitness Goal
-                </label>
-                <select
-                  value={formData.goal}
-                  onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="muscle-gain">Muscle Gain</option>
-                  <option value="weight-loss">Weight Loss</option>
-                  <option value="endurance">Endurance</option>
-                  <option value="general-fitness">General Fitness</option>
-                </select>
-              </div>
+              <Select
+                label="Goal"
+                value={formData.goal}
+                onChange={(value) => handleSelectChange('goal', value)}
+                options={[
+                  { value: 'general-fitness', label: 'General Fitness' },
+                  { value: 'weight-loss', label: 'Weight Loss' },
+                  { value: 'muscle-gain', label: 'Muscle Gain' },
+                  { value: 'strength', label: 'Strength' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fitness Level
-                </label>
-                <select
-                  value={formData.fitnessLevel}
-                  onChange={(e) => setFormData({ ...formData, fitnessLevel: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
+              <Select
+                label="Fitness Level"
+                value={formData.fitnessLevel}
+                onChange={(value) => handleSelectChange('fitnessLevel', value)}
+                options={[
+                  { value: 'beginner', label: 'Beginner' },
+                  { value: 'intermediate', label: 'Intermediate' },
+                  { value: 'advanced', label: 'Advanced' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Days per Week
-                </label>
-                <select
-                  value={formData.daysPerWeek}
-                  onChange={(e) => setFormData({ ...formData, daysPerWeek: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="3">3 days</option>
-                  <option value="4">4 days</option>
-                  <option value="5">5 days</option>
-                  <option value="6">6 days</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {isLoading ? (
-                  <>
-                    <LoadingSpinner />
-                    <span>Generating Your Plan...</span>
-                  </>
-                ) : (
-                  'Generate Workout Plan'
-                )}
-              </button>
-
-              {error && (
-                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
-            </form>
+              <Select
+                label="Days per Week"
+                value={formData.daysPerWeek}
+                onChange={(value) => handleSelectChange('daysPerWeek', value)}
+                options={[
+                  { value: '3', label: '3 Days' },
+                  { value: '4', label: '4 Days' },
+                  { value: '5', label: '5 Days' },
+                  { value: '6', label: '6 Days' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
+            </Form>
           </div>
 
           <div>

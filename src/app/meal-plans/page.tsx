@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Form } from '@/components/ui/form';
 
 interface MealPlan {
   id: string;
@@ -82,17 +89,32 @@ interface MealPlan {
   notes: string;
 }
 
+interface FormData {
+  age: string;
+  weight: string;
+  height: string;
+  gender: string;
+  activityLevel: string;
+  goal: string;
+  restrictions: string[];
+  preferences: string[];
+  mealsPerDay: string;
+}
+
 export default function MealPlansPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     age: '',
     weight: '',
     height: '',
-    goal: 'weight-loss',
-    activityLevel: 'light',
-    dietaryRestrictions: [] as string[],
+    gender: '',
+    activityLevel: '',
+    goal: '',
+    restrictions: [],
+    preferences: [],
     mealsPerDay: '3'
   });
 
@@ -108,16 +130,52 @@ export default function MealPlansPage() {
   const handleDietaryChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
-      dietaryRestrictions: prev.dietaryRestrictions.includes(value)
-        ? prev.dietaryRestrictions.filter((item) => item !== value)
-        : [...prev.dietaryRestrictions, value],
+      restrictions: prev.restrictions.includes(value)
+        ? prev.restrictions.filter((item) => item !== value)
+        : [...prev.restrictions, value],
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRestrictionChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      restrictions: value ? [value] : []
+    }));
+  };
+
+  const handleSelectChange = (field: keyof FormData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleInputChange = (field: keyof FormData, e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: e.target.value
+    }));
+  };
+
+  const handlePreferenceChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      preferences: value ? [value] : []
+    }));
+  };
+
+  const handleMealsPerDayChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      mealsPerDay: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setMealPlan(null);
 
     try {
       const response = await fetch('/api/generate-meal-plan', {
@@ -128,18 +186,16 @@ export default function MealPlansPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate meal plan');
+        throw new Error('Failed to generate meal plan');
       }
 
+      const data = await response.json();
       setMealPlan(data.mealPlan);
+      router.push(`/meal-plans/${data.planId}`);
       toast.success('Meal plan generated successfully!');
-    } catch (error) {
-      console.error('Error generating meal plan:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate meal plan');
-      setMealPlan(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -157,160 +213,96 @@ export default function MealPlansPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">
               Generate Your Meal Plan
             </h1>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Age
-                </label>
-                <input
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="13"
-                  max="100"
-                />
-              </div>
+            <Form
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              error={error}
+              submitText="Generate Meal Plan"
+            >
+              <Input
+                label="Age"
+                type="number"
+                name="age"
+                value={formData.age}
+                onChange={(e) => handleInputChange('age', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Weight (kg)
-                </label>
-                <input
-                  type="number"
-                  value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="30"
-                  max="300"
-                  step="0.1"
-                />
-              </div>
+              <Input
+                label="Weight (kg)"
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={(e) => handleInputChange('weight', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Height (cm)
-                </label>
-                <input
-                  type="number"
-                  value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  required
-                  disabled={isLoading}
-                  min="100"
-                  max="250"
-                  step="0.1"
-                />
-              </div>
+              <Input
+                label="Height (cm)"
+                type="number"
+                name="height"
+                value={formData.height}
+                onChange={(e) => handleInputChange('height', e)}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Goal
-                </label>
-                <select
-                  value={formData.goal}
-                  onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="weight-loss">Weight Loss</option>
-                  <option value="muscle-gain">Muscle Gain</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="general-health">General Health</option>
-                </select>
-              </div>
+              <Select
+                label="Gender"
+                value={formData.gender}
+                onChange={(value) => handleSelectChange('gender', value)}
+                options={[
+                  { value: 'male', label: 'Male' },
+                  { value: 'female', label: 'Female' },
+                  { value: 'other', label: 'Other' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Activity Level
-                </label>
-                <select
-                  value={formData.activityLevel}
-                  onChange={(e) => setFormData({ ...formData, activityLevel: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="light">Light Activity</option>
-                  <option value="moderate">Moderate Activity</option>
-                  <option value="active">Active</option>
-                  <option value="very-active">Very Active</option>
-                </select>
-              </div>
+              <Select
+                label="Activity Level"
+                value={formData.activityLevel}
+                onChange={(value) => handleSelectChange('activityLevel', value)}
+                options={[
+                  { value: 'sedentary', label: 'Sedentary' },
+                  { value: 'light', label: 'Light Activity' },
+                  { value: 'moderate', label: 'Moderate Activity' },
+                  { value: 'active', label: 'Very Active' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Dietary Restrictions
-                </label>
-                <div className="space-y-2">
-                  {['Vegetarian', 'Vegan', 'Gluten Free', 'Dairy Free', 'Keto', 'Paleo'].map((restriction) => (
-                    <label key={restriction} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.dietaryRestrictions.includes(restriction.toLowerCase())}
-                        onChange={(e) => {
-                          const value = restriction.toLowerCase();
-                          setFormData({
-                            ...formData,
-                            dietaryRestrictions: e.target.checked
-                              ? [...formData.dietaryRestrictions, value]
-                              : formData.dietaryRestrictions.filter((r) => r !== value),
-                          });
-                        }}
-                        disabled={isLoading}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{restriction}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <Select
+                label="Goal"
+                value={formData.goal}
+                onChange={(value) => handleSelectChange('goal', value)}
+                options={[
+                  { value: 'lose-weight', label: 'Lose Weight' },
+                  { value: 'maintain', label: 'Maintain Weight' },
+                  { value: 'gain-weight', label: 'Gain Weight' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Meals per Day
-                </label>
-                <select
-                  value={formData.mealsPerDay}
-                  onChange={(e) => setFormData({ ...formData, mealsPerDay: e.target.value })}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isLoading}
-                >
-                  <option value="3">3 meals</option>
-                  <option value="4">4 meals</option>
-                  <option value="5">5 meals</option>
-                  <option value="6">6 meals</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Generating Your Plan...</span>
-                  </>
-                ) : (
-                  'Generate Meal Plan'
-                )}
-              </button>
-
-              {error && (
-                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
-            </form>
+              <Select
+                label="Meals per Day"
+                value={formData.mealsPerDay}
+                onChange={handleMealsPerDayChange}
+                options={[
+                  { value: '3', label: '3 Meals' },
+                  { value: '4', label: '4 Meals' },
+                  { value: '5', label: '5 Meals' },
+                  { value: '6', label: '6 Meals' }
+                ]}
+                required
+                isLoading={isLoading}
+              />
+            </Form>
           </div>
 
           <div>

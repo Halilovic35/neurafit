@@ -398,7 +398,48 @@ export async function POST(req: Request) {
       const messages: ChatCompletionMessageParam[] = [
         { 
           role: "system", 
-          content: "You are a professional nutritionist. You MUST respond with ONLY valid JSON, no other text. The JSON should follow this structure: { name: string, description: string, days: Array<{ meals: Array<{ name: string, foods: Array<string>, calories: number }> }> }"
+          content: `You are a professional nutritionist. You MUST respond with ONLY valid JSON, no other text. The meal plan should follow this EXACT structure:
+{
+  "name": "Name of the meal plan",
+  "description": "Description of the plan",
+  "totalCalories": 2000,
+  "days": [
+    {
+      "name": "Day 1",
+      "meals": [
+        {
+          "name": "Breakfast",
+          "time": "8:00 AM",
+          "calories": 500,
+          "foods": [
+            {
+              "name": "Food item",
+              "portion": "1 cup",
+              "calories": 200,
+              "protein": 15,
+              "carbs": 30,
+              "fats": 8
+            }
+          ],
+          "instructions": "How to prepare this meal"
+        }
+      ],
+      "snacks": [
+        {
+          "name": "Morning Snack",
+          "time": "10:30 AM",
+          "calories": 150,
+          "foods": ["Apple", "Almonds"]
+        }
+      ],
+      "totalCalories": 2000,
+      "notes": "Day-specific nutrition tips"
+    }
+  ],
+  "tips": [
+    "General nutrition tips"
+  ]
+}`
         },
         { 
           role: "user", 
@@ -420,12 +461,34 @@ export async function POST(req: Request) {
         throw new Error('No content received from OpenAI');
       }
 
-      console.log('Received response from OpenAI:', content.substring(0, 500));
+      console.log('Received response from OpenAI:', content);
 
       try {
         // Try to parse the JSON response
         const mealPlan = JSON.parse(content.trim());
         console.log('Successfully parsed JSON response');
+
+        // Validate meal plan structure
+        if (!mealPlan.name || !mealPlan.description) {
+          throw new Error('Invalid meal plan: missing name or description');
+        }
+
+        if (!mealPlan.days || !Array.isArray(mealPlan.days)) {
+          throw new Error('Invalid meal plan: missing or invalid days array');
+        }
+
+        // Validate each day
+        mealPlan.days.forEach((day: any, index: number) => {
+          if (!day.name) {
+            throw new Error(`Day ${index + 1} is missing name`);
+          }
+          if (!day.meals || !Array.isArray(day.meals)) {
+            throw new Error(`Day ${index + 1} is missing meals array`);
+          }
+          if (day.meals.length !== parseInt(mealsPerDay)) {
+            throw new Error(`Day ${index + 1} has incorrect number of meals`);
+          }
+        });
 
         // Save the meal plan to the database
         const savedPlan = await savePlanToDatabase(mealPlan, decoded.id, {
@@ -446,7 +509,34 @@ export async function POST(req: Request) {
       } catch (parseError) {
         console.error('Failed to parse OpenAI response:', parseError);
         console.error('Raw content:', content);
-        throw new Error('Failed to parse meal plan response from OpenAI');
+        
+        // If parsing failed, try to use the fallback plan
+        console.log('Using fallback plan due to parsing error');
+        const fallbackPlan = generateFallbackMealPlan(
+          '25', // default age
+          weight,
+          height,
+          goal,
+          activityLevel,
+          restrictions,
+          mealsPerDay
+        );
+
+        const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
+          bmi,
+          bmiCategory,
+          dailyCalories,
+          goal,
+          activityLevel,
+          mealsPerDay,
+          restrictions
+        });
+
+        return NextResponse.json({
+          mealPlan: fallbackPlan,
+          planId: savedPlan.id,
+          message: 'Using fallback meal plan due to parsing error'
+        });
       }
 
     } catch (error: any) {
