@@ -13,24 +13,15 @@ try {
   if (!apiKey) {
     console.error('OPENAI_API_KEY environment variable is not set');
   } else {
-    // Configure OpenAI client with custom base URL for project keys
-    const isProjectKey = apiKey.startsWith('sk-proj-');
+    // Configure OpenAI client
     const config: any = {
       apiKey: apiKey,
-      baseURL: isProjectKey ? 'https://api.proxyapi.io/openai/v1' : 'https://api.openai.com/v1',
-      defaultHeaders: isProjectKey ? {
-        'Authorization': `Bearer ${apiKey}`,
-        'X-Project-ID': apiKey.split('-')[2] // Extract project ID from key
-      } : undefined,
-      defaultQuery: isProjectKey ? {
-        'api-version': '2024-02-15'
-      } : undefined,
       timeout: 30000, // 30 second timeout
       maxRetries: 3
     };
 
     openai = new OpenAI(config);
-    console.log('OpenAI client initialized with', isProjectKey ? 'project' : 'standard', 'key');
+    console.log('OpenAI client initialized successfully');
   }
 } catch (error) {
   console.error('Failed to initialize OpenAI client:', error);

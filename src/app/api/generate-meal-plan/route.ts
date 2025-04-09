@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { verify } from 'jsonwebtoken';
-import { OpenAI } from 'openai';
-import { PrismaClient, Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import { ChatCompletionMessageParam } from 'openai/resources/chat';
+import openai from '@/lib/openai';
 
-const prisma = new PrismaClient();
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 const JWT_SECRET = process.env.JWT_SECRET || 'neurafit-secret-key-2024-secure-and-unique';
 
 const systemPrompt = `You are a professional nutritionist creating comprehensive, personalized meal plans. Your responses should be in JSON format with the following detailed structure:
@@ -99,19 +103,6 @@ const systemPrompt = `You are a professional nutritionist creating comprehensive
   },
   "notes": "Additional tips and recommendations for optimal results"
 }`;
-
-// Initialize OpenAI client only if API key is available
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000, // 30 seconds timeout
-  maxRetries: 3,
-  baseURL: process.env.OPENAI_API_KEY?.startsWith('sk-proj-') 
-    ? 'https://api.proxyapi.io/openai/v1'
-    : 'https://api.openai.com/v1',
-  defaultHeaders: process.env.OPENAI_API_KEY?.startsWith('sk-proj-') 
-    ? { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
-    : undefined
-}) : null;
 
 // Add logging to debug OpenAI client initialization
 if (openai) {
@@ -501,7 +492,4 @@ function calculateTargetCalories(tdee: number, goal: string): number {
     default:
       return Math.round(tdee); // maintenance
   }
-}
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic' 
+} 
