@@ -20,8 +20,21 @@ try {
       maxRetries: 3
     };
 
+    // If using a project API key, set the base URL to the proxy API
+    if (apiKey.startsWith('sk-proj-')) {
+      config.baseURL = 'https://api.proxyapi.io/openai/v1';
+      config.defaultHeaders = {
+        'api-key': apiKey
+      };
+    }
+
     openai = new OpenAI(config);
-    console.log('OpenAI client initialized successfully');
+    console.log('OpenAI client initialized with:', {
+      type: apiKey.startsWith('sk-proj-') ? 'project key' : 'standard key',
+      baseURL: config.baseURL || 'default',
+      timeout: config.timeout,
+      maxRetries: config.maxRetries
+    });
   }
 } catch (error) {
   console.error('Failed to initialize OpenAI client:', error);
@@ -48,8 +61,14 @@ export async function validateOpenAIKey() {
       throw new Error('OpenAI API response is empty');
     }
   } catch (error: any) {
-    console.error('OpenAI API key validation failed:', error.message);
-    throw new Error(`OpenAI API key validation failed: ${error.message}`);
+    console.error('OpenAI API key validation failed:', error);
+    if (error.status === 401) {
+      throw new Error('Invalid API key or unauthorized access');
+    } else if (error.status === 429) {
+      throw new Error('Rate limit exceeded - please try again later');
+    } else {
+      throw new Error(`OpenAI API error: ${error.message}`);
+    }
   }
 }
 

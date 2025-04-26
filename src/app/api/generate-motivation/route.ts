@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { verify } from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+import openai from '@/lib/openai';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'neurafit-secret-key-2024-secure-and-unique';
-
-// Initialize OpenAI client only if API key is available
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000, // 30 seconds timeout
-  maxRetries: 3,
-  baseURL: process.env.OPENAI_API_KEY?.startsWith('sk-proj-') 
-    ? 'https://api.proxyapi.io/openai/v1'
-    : 'https://api.openai.com/v1',
-  defaultHeaders: process.env.OPENAI_API_KEY?.startsWith('sk-proj-') 
-    ? { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
-    : undefined
-}) : null;
 
 const systemPrompt = `You are an enthusiastic and supportive fitness coach providing personalized motivation to users who complete their workouts. Your responses should be:
 1. Short and impactful (2-3 sentences max)
@@ -40,6 +27,10 @@ const fallbackMessages = [
   "Amazing job! You're making great progress! 🚀",
   "Incredible effort! You're getting stronger every day! 💪"
 ];
+
+function getRandomFallbackMessage() {
+  return fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+}
 
 export async function POST(request: Request) {
   try {
@@ -111,9 +102,4 @@ ${userData ? `- Total workouts completed: ${await prisma.completedWorkout.count(
       error: 'Using fallback message due to error'
     });
   }
-}
-
-function getRandomFallbackMessage(): string {
-  const randomIndex = Math.floor(Math.random() * fallbackMessages.length);
-  return fallbackMessages[randomIndex];
 } 

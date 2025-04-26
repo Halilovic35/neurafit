@@ -43,7 +43,7 @@ export default function WorkoutsPage() {
     age: '',
     height: '',
     weight: '',
-    gender: '',
+    gender: 'male',
     goal: 'general-fitness',
     fitnessLevel: 'beginner',
     daysPerWeek: '3'
@@ -53,6 +53,11 @@ export default function WorkoutsPage() {
 
   // Load workout plan from localStorage on mount
   useEffect(() => {
+    const hasGeneratedPlan = localStorage.getItem('hasGeneratedPlan');
+    if (!hasGeneratedPlan) {
+      // Nemoj učitavati plan dok korisnik ne generiše
+      return;
+    }
     const savedPlan = localStorage.getItem('currentWorkoutPlan');
     const savedCompletedWorkouts = localStorage.getItem('completedWorkouts');
     
@@ -218,16 +223,16 @@ export default function WorkoutsPage() {
         weight: parseFloat(formData.weight),
         gender: formData.gender,
         goal: formData.goal,
-        fitnessLevel: formData.fitnessLevel,
-        daysPerWeek: formData.daysPerWeek
+        fitnessLevel: formData.fitnessLevel.toLowerCase(), // Convert to lowercase to match API expectations
+        daysPerWeek: parseInt(formData.daysPerWeek)
       };
 
       // Log request data for debugging
       console.log('Sending request with data:', requestData);
 
       // Validate numeric values
-      if (isNaN(requestData.height) || isNaN(requestData.weight) || isNaN(requestData.age)) {
-        throw new Error('Age, height and weight must be valid numbers');
+      if (isNaN(requestData.height) || isNaN(requestData.weight) || isNaN(requestData.age) || isNaN(requestData.daysPerWeek)) {
+        throw new Error('Age, height, weight and days per week must be valid numbers');
       }
 
       // Additional request validation
@@ -317,6 +322,7 @@ export default function WorkoutsPage() {
       // Save to localStorage after validation
       console.log('Saving workout plan to localStorage:', data);
       localStorage.setItem('currentWorkoutPlan', JSON.stringify(data));
+      localStorage.setItem('hasGeneratedPlan', 'true');
 
       // Log success
       console.log('Successfully generated and validated workout plan');
@@ -338,8 +344,6 @@ export default function WorkoutsPage() {
     }
 
     try {
-      console.log('Completing workout for day index:', dayIndex);
-      console.log('Current completed workouts before update:', completedWorkouts);
       setCompletingWorkout(dayIndex);
       const completedAt = new Date().toISOString();
 
@@ -358,112 +362,44 @@ export default function WorkoutsPage() {
         }),
       });
 
-      const data = await response.json();
-      console.log('Complete workout response:', data);
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to complete workout');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to complete workout');
       }
 
-      // Update completed workouts state with the workoutPlanId
+      const data = await response.json();
+      
+      // Update completed workouts state
       const updatedCompletedWorkouts = [...completedWorkouts, { 
         dayIndex, 
         completedAt, 
         workoutPlanId: workoutPlan.id 
       }];
-      console.log('Updated completed workouts:', updatedCompletedWorkouts);
       setCompletedWorkouts(updatedCompletedWorkouts);
 
       // Find the next incomplete day
       const nextIncompleteDayIndex = workoutPlan.days.findIndex((_, index) => {
-        // Skip days that are already completed
-        if (updatedCompletedWorkouts.some(workout => workout.dayIndex === index && workout.workoutPlanId === workoutPlan.id)) {
-          return false;
-        }
-        // Skip the current day
-        if (index === dayIndex) {
-          return false;
-        }
-        return true;
+        return !updatedCompletedWorkouts.some(workout => 
+          workout.dayIndex === index && 
+          workout.workoutPlanId === workoutPlan.id
+        );
       });
-      
-      console.log('Next incomplete day index:', nextIncompleteDayIndex);
 
-      // Calculate total completed workouts for this plan
-      const totalCompletedWorkouts = updatedCompletedWorkouts.filter(
-        workout => workout.workoutPlanId === workoutPlan.id
-      ).length;
-
-      console.log('Total completed workouts:', totalCompletedWorkouts);
-      console.log('Total days in plan:', workoutPlan.days.length);
-
-      // Check if this was the last day of the workout plan
-      const isLastDay = dayIndex === workoutPlan.days.length - 1;
-      const allDaysCompleted = totalCompletedWorkouts === workoutPlan.days.length;
-
-      if (allDaysCompleted && isLastDay) {
-        // All days are completed and this was the last day
-        console.log('All days completed, showing completion message');
-        toast.success('Congratulations! You completed all workouts for this week! 🎉');
-        
-        if (data.nextLevel) {
-          toast.success(`You've reached ${data.nextLevel} level! 🏆`);
-        }
-        if (data.badges?.length > 0) {
-          toast.success(`You earned ${data.badges.length} new badge(s)! 🌟`);
-        }
-        
-        // Show prompt to start new week with updated stats
-        toast((t) => (
-          <div className="flex flex-col space-y-2">
-            <p>Week completed! Would you like to start a new week with updated stats?</p>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  // Clear the workout plan and completed workouts
-                  setWorkoutPlan(null);
-                  setCompletedWorkouts([]);
-                  localStorage.removeItem('currentWorkoutPlan');
-                  localStorage.removeItem('completedWorkouts');
-                  // Reset form to allow updating stats
-                  setFormData(prevData => ({
-                    ...prevData,
-                    weight: '', // Reset weight to allow updating
-                  }));
-                  toast.success('Ready to start a new week! Update your stats and generate a new plan.');
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Start New Week
-              </button>
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  router.push('/dashboard');
-                }}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                View Dashboard
-              </button>
-            </div>
-          </div>
-        ), {
-          duration: 0, // Don't auto-dismiss
-          position: 'top-center',
-        });
-      } else if (nextIncompleteDayIndex >= 0) {
-        // There's a next day to complete
-        console.log('Setting current day index to:', nextIncompleteDayIndex);
+      // Update current day index
+      if (nextIncompleteDayIndex !== -1) {
         setCurrentDayIndex(nextIncompleteDayIndex);
-        // Show progress message
-        toast.success(`Day ${dayIndex + 1} completed! Moving to Day ${nextIncompleteDayIndex + 1}`);
-        // Generate motivational message for the next day
-        generateMotivationalMessage(nextIncompleteDayIndex);
+      } else {
+        // All days completed
+        setCurrentDayIndex(workoutPlan.days.length - 1);
       }
 
-      // Update local storage
-      localStorage.setItem('completedWorkouts', JSON.stringify(updatedCompletedWorkouts));
+      // Show success message
+      toast.success('Workout completed successfully!');
+      
+      // Generate motivational message for next day
+      if (nextIncompleteDayIndex !== -1) {
+        generateMotivationalMessage(nextIncompleteDayIndex);
+      }
 
     } catch (error) {
       console.error('Error completing workout:', error);
@@ -563,9 +499,9 @@ export default function WorkoutsPage() {
             >
               <Input
                 label="Age"
-                type="number"
+                  type="number"
                 name="age"
-                value={formData.age}
+                  value={formData.age}
                 onChange={(e) => handleInputChange('age', e)}
                 required
                 isLoading={isLoading}
@@ -577,17 +513,17 @@ export default function WorkoutsPage() {
                 name="height"
                 value={formData.height}
                 onChange={(e) => handleInputChange('height', e)}
-                required
+                  required
                 isLoading={isLoading}
               />
 
               <Input
                 label="Weight (kg)"
-                type="number"
+                  type="number"
                 name="weight"
-                value={formData.weight}
+                  value={formData.weight}
                 onChange={(e) => handleInputChange('weight', e)}
-                required
+                  required
                 isLoading={isLoading}
               />
 
@@ -600,13 +536,13 @@ export default function WorkoutsPage() {
                   { value: 'female', label: 'Female' },
                   { value: 'other', label: 'Other' }
                 ]}
-                required
+                  required
                 isLoading={isLoading}
               />
 
               <Select
                 label="Goal"
-                value={formData.goal}
+                  value={formData.goal}
                 onChange={(value) => handleSelectChange('goal', value)}
                 options={[
                   { value: 'general-fitness', label: 'General Fitness' },
@@ -620,7 +556,7 @@ export default function WorkoutsPage() {
 
               <Select
                 label="Fitness Level"
-                value={formData.fitnessLevel}
+                  value={formData.fitnessLevel}
                 onChange={(value) => handleSelectChange('fitnessLevel', value)}
                 options={[
                   { value: 'beginner', label: 'Beginner' },
@@ -633,7 +569,7 @@ export default function WorkoutsPage() {
 
               <Select
                 label="Days per Week"
-                value={formData.daysPerWeek}
+                  value={formData.daysPerWeek}
                 onChange={(value) => handleSelectChange('daysPerWeek', value)}
                 options={[
                   { value: '3', label: '3 Days' },
@@ -813,23 +749,41 @@ export default function WorkoutsPage() {
                                 )}
                               </div>
                               <div className="mt-3 text-sm">
-                                <p className="font-medium text-gray-700 dark:text-gray-300">Setup:</p>
-                                <p className="text-gray-600 dark:text-gray-400">{exercise.setup}</p>
-                                <p className="font-medium text-gray-700 dark:text-gray-300 mt-2">Execution:</p>
-                                <div className="ml-2">
-                                  <p><strong>Starting Position:</strong> {exercise.execution.starting_position}</p>
-                                  <p><strong>Movement:</strong> {exercise.execution.movement}</p>
-                                  <p><strong>Breathing:</strong> {exercise.execution.breathing}</p>
-                                  <p><strong>Tempo:</strong> {exercise.execution.tempo}</p>
-                                  <div className="mt-1">
-                                    <strong>Form Cues:</strong>
-                                    <ul className="list-disc ml-4">
-                                      {exercise.execution.form_cues.map((cue, cueIndex) => (
-                                        <li key={cueIndex}>{cue}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                </div>
+                                {exercise.setup && (
+                                  <>
+                                    <p className="font-medium text-gray-700 dark:text-gray-300">Setup:</p>
+                                    <p className="text-gray-600 dark:text-gray-400">{exercise.setup}</p>
+                                  </>
+                                )}
+                                {exercise.execution && (
+                                  <>
+                                    <p className="font-medium text-gray-700 dark:text-gray-300 mt-2">Execution:</p>
+                                    <div className="ml-2">
+                                      {exercise.execution.starting_position && (
+                                        <p><strong>Starting Position:</strong> {exercise.execution.starting_position}</p>
+                                      )}
+                                      {exercise.execution.movement && (
+                                        <p><strong>Movement:</strong> {exercise.execution.movement}</p>
+                                      )}
+                                      {exercise.execution.breathing && (
+                                        <p><strong>Breathing:</strong> {exercise.execution.breathing}</p>
+                                      )}
+                                      {exercise.execution.tempo && (
+                                        <p><strong>Tempo:</strong> {exercise.execution.tempo}</p>
+                                      )}
+                                      {exercise.execution.form_cues?.length > 0 && (
+                                        <div className="mt-1">
+                                          <strong>Form Cues:</strong>
+                                          <ul className="list-disc ml-4">
+                                            {exercise.execution.form_cues.map((cue, cueIndex) => (
+                                              <li key={cueIndex}>{cue}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           ))}

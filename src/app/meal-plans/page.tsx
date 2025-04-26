@@ -217,29 +217,29 @@ export default function MealPlansPage() {
             >
               <Input
                 label="Age"
-                type="number"
+                  type="number"
                 name="age"
-                value={formData.age}
+                  value={formData.age}
                 onChange={(e) => handleInputChange('age', e)}
-                required
+                  required
                 isLoading={isLoading}
               />
 
               <Input
                 label="Weight (kg)"
-                type="number"
+                  type="number"
                 name="weight"
-                value={formData.weight}
+                  value={formData.weight}
                 onChange={(e) => handleInputChange('weight', e)}
-                required
+                  required
                 isLoading={isLoading}
               />
 
               <Input
                 label="Height (cm)"
-                type="number"
+                  type="number"
                 name="height"
-                value={formData.height}
+                  value={formData.height}
                 onChange={(e) => handleInputChange('height', e)}
                 required
                 isLoading={isLoading}
@@ -268,13 +268,13 @@ export default function MealPlansPage() {
                   { value: 'moderate', label: 'Moderate Activity' },
                   { value: 'active', label: 'Very Active' }
                 ]}
-                required
+                  required
                 isLoading={isLoading}
               />
 
               <Select
                 label="Goal"
-                value={formData.goal}
+                  value={formData.goal}
                 onChange={(value) => handleSelectChange('goal', value)}
                 options={[
                   { value: 'lose-weight', label: 'Lose Weight' },
@@ -298,6 +298,32 @@ export default function MealPlansPage() {
                 required
                 isLoading={isLoading}
               />
+
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Dietary Restrictions
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  {dietaryOptions.map((option) => (
+                    <div key={option.value} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={option.value}
+                        checked={formData.restrictions.includes(option.value)}
+                        onChange={() => handleDietaryChange(option.value)}
+                        disabled={isLoading}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor={option.value}
+                        className="ml-2 block text-sm text-gray-700 dark:text-gray-200"
+                      >
+                        {option.label}
+                    </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </Form>
           </div>
 
@@ -326,9 +352,9 @@ export default function MealPlansPage() {
                   </div>
                 </motion.div>
               ) : mealPlan ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                   className="bg-white dark:bg-gray-800 rounded-lg shadow p-6"
                 >
                   <h2 className="text-2xl font-semibold mb-4">{mealPlan.name}</h2>
@@ -337,7 +363,7 @@ export default function MealPlansPage() {
                   {/* Days */}
                   {mealPlan.days && mealPlan.days.length > 0 ? (
                     mealPlan.days.map((day, index) => (
-                      <div key={index} className="border-b pb-6 last:border-b-0">
+                    <div key={index} className="border-b pb-6 last:border-b-0">
                         <h3 className="text-xl font-semibold mb-2">{day.name}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <div>
@@ -353,28 +379,28 @@ export default function MealPlansPage() {
                           </div>
                         </div>
 
-                        <div className="space-y-6">
+                      <div className="space-y-6">
                           {day.meals && day.meals.length > 0 ? (
                             day.meals.map((meal, mealIndex) => (
-                              <div
-                                key={mealIndex}
-                                className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
-                              >
-                                <h4 className="font-medium text-gray-900 dark:text-white">
+                          <div
+                            key={mealIndex}
+                            className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
+                          >
+                            <h4 className="font-medium text-gray-900 dark:text-white">
                                   {meal.name} - {meal.time}
-                                </h4>
-                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                  <p>Calories: {meal.calories} kcal</p>
-                                  <p>
-                                    Macros: {meal.macros.protein}g protein, {meal.macros.carbs}g carbs,{' '}
+                            </h4>
+                            <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                              <p>Calories: {meal.calories} kcal</p>
+                              <p>
+                                Macros: {meal.macros.protein}g protein, {meal.macros.carbs}g carbs,{' '}
                                     {meal.macros.fats}g fats, {meal.macros.fiber}g fiber
-                                  </p>
-                                </div>
-                                <div className="mt-4">
-                                  <h5 className="font-medium text-gray-900 dark:text-white mb-2">
-                                    Ingredients:
-                                  </h5>
-                                  <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-300">
+                              </p>
+                            </div>
+                            <div className="mt-4">
+                              <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                                Ingredients:
+                              </h5>
+                              <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-300">
                                     {meal.items && meal.items.length > 0 ? (
                                       meal.items.map((item, i) => (
                                         <li key={i}>
@@ -455,7 +481,7 @@ export default function MealPlansPage() {
                                 ))}
                               </ul>
                             )}
-                          </div>
+                            </div>
                         )}
 
                         {/* Notes */}
@@ -583,17 +609,17 @@ export default function MealPlansPage() {
                     <div className="mt-8 border-t pt-6">
                       <h3 className="text-xl font-semibold mb-4">Additional Notes</h3>
                       <p className="text-gray-600 dark:text-gray-300">{mealPlan.notes}</p>
-                    </div>
+                </div>
                   )}
-                </motion.div>
-              ) : (
+              </motion.div>
+            ) : (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="flex items-center justify-center h-full"
                 >
-                  <p className="text-gray-500 dark:text-gray-400 text-center">
+                <p className="text-gray-500 dark:text-gray-400 text-center">
                     {error ? (
                       <span className="text-red-500">{error}</span>
                     ) : (

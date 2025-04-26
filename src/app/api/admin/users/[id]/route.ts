@@ -106,6 +106,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    if (userId === 'anonymous') {
+      return NextResponse.json({ error: 'Cannot delete anonymous user' }, { status: 400 });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -124,13 +128,16 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       message: 'User deleted successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting user:', error);
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json(
         { error: 'Unauthorized access' },
         { status: 401 }
       );
+    }
+    if (error.code === 'P2003') {
+      return NextResponse.json({ error: 'Cannot delete user with active workout plans or related data.' }, { status: 400 });
     }
     return NextResponse.json(
       { error: 'Failed to delete user' },

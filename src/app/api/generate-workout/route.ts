@@ -733,11 +733,11 @@ async function ensureDefaultUser() {
           id: 'anonymous',
           email: 'anonymous@example.com',
           name: 'Anonymous User',
-          password: 'anonymous' // Add required password field
+          password: 'anonymous'
         }
       });
     }
-    return true;
+    return 'anonymous'; // Return the user ID instead of boolean
   } catch (error) {
     console.error('Error ensuring default user:', error);
     throw new Error('Failed to ensure default user exists');
@@ -750,7 +750,9 @@ function isOpenAIAvailable(client: typeof openai): client is NonNullable<typeof 
 }
 
 export async function POST(req: Request) {
+  console.log('API /api/generate-workout called');
   try {
+    const userId = await ensureDefaultUser();
     const body = await req.json();
     const { age, height, weight, gender, goal, fitnessLevel, daysPerWeek } = body;
 
@@ -766,11 +768,20 @@ export async function POST(req: Request) {
     const numericAge = parseInt(age);
     const numericHeight = parseFloat(height);
     const numericWeight = parseFloat(weight);
+    const numericDaysPerWeek = parseInt(daysPerWeek);
 
     // Validate numeric values
-    if (isNaN(numericAge) || isNaN(numericHeight) || isNaN(numericWeight)) {
+    if (isNaN(numericAge) || isNaN(numericHeight) || isNaN(numericWeight) || isNaN(numericDaysPerWeek)) {
       return NextResponse.json(
         { error: 'Invalid numeric values' },
+        { status: 400 }
+      );
+    }
+
+    // Additional validation for daysPerWeek
+    if (numericDaysPerWeek < 1 || numericDaysPerWeek > 7) {
+      return NextResponse.json(
+        { error: 'Days per week must be between 1 and 7' },
         { status: 400 }
       );
     }
@@ -781,7 +792,7 @@ export async function POST(req: Request) {
 
     // Generate system prompt
     const systemPrompt = generateSystemPrompt(
-      daysPerWeek,
+      numericDaysPerWeek.toString(),
       goal,
       fitnessLevel as FitnessLevel,
       bmiCategory
@@ -814,11 +825,11 @@ export async function POST(req: Request) {
               { role: 'system', content: systemPrompt },
               {
                 role: 'user',
-                content: `Generate a workout plan for a ${gender}, ${age} years old, ${height}cm tall, ${weight}kg person with ${fitnessLevel} fitness level, aiming for ${goal}, training ${daysPerWeek} days per week.`
+                content: `Generate a workout plan for a ${gender}, ${age} years old, ${height}cm tall, ${weight}kg person with ${fitnessLevel} fitness level, aiming for ${goal}, training ${numericDaysPerWeek} days per week.`
               }
             ],
             i,
-            daysPerWeek,
+            numericDaysPerWeek.toString(),
             goal,
             fitnessLevel as FitnessLevel,
             bmiCategory
@@ -829,13 +840,12 @@ export async function POST(req: Request) {
 
           // If we get here, the request succeeded
           // Save plan to database
-          const userId = await ensureDefaultUser();
           await savePlanToDatabase(workoutPlan, userId, {
             bmi,
             bmiCategory,
             fitnessLevel,
             goal,
-            daysPerWeek
+            daysPerWeek: numericDaysPerWeek
           });
 
           return NextResponse.json(workoutPlan);
@@ -878,7 +888,7 @@ async function savePlanToDatabase(plan: any, userId: string, metadata: {
   bmiCategory: string;
   fitnessLevel: string;
   goal: string;
-  daysPerWeek: string;
+  daysPerWeek: number;
 }) {
   return await prisma.workoutPlan.create({
     data: {
@@ -890,7 +900,7 @@ async function savePlanToDatabase(plan: any, userId: string, metadata: {
       bmiCategory: metadata.bmiCategory,
       fitnessLevel: metadata.fitnessLevel,
       goal: metadata.goal,
-      daysPerWeek: parseInt(metadata.daysPerWeek)
+      daysPerWeek: metadata.daysPerWeek
     },
   });
 } 

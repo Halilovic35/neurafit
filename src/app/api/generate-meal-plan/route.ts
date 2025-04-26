@@ -329,7 +329,7 @@ export async function POST(req: Request) {
     // Get the token from cookies
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-
+    
     if (!token) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -353,6 +353,7 @@ export async function POST(req: Request) {
 
     // Get request data
     const {
+      age,
       weight,
       height,
       goal,
@@ -362,7 +363,7 @@ export async function POST(req: Request) {
     } = await req.json();
 
     // Validate required fields
-    if (!weight || !height || !goal || !activityLevel || !mealsPerDay) {
+    if (!age || !weight || !height || !goal || !activityLevel || !mealsPerDay) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -376,7 +377,8 @@ export async function POST(req: Request) {
       parseFloat(weight),
       parseFloat(height),
       activityLevel,
-      goal
+      goal,
+      parseInt(age)  // Add age to calorie calculation
     );
 
     // Generate the system prompt
@@ -449,12 +451,19 @@ export async function POST(req: Request) {
 
       console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4",
+      const timeoutMs = 30000; // 30 seconds timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+      });
+
+      const openaiPromise = openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
         messages,
         temperature: 0.7,
-        max_tokens: 4000
+        max_tokens: 2000
       });
+
+      const response = await Promise.race([openaiPromise, timeoutPromise]) as Awaited<typeof openaiPromise>;
 
       const content = response.choices[0].message.content;
       if (!content) {
@@ -601,9 +610,9 @@ function getBMICategory(bmi: number): string {
   }
 }
 
-function calculateDailyCalories(weight: number, height: number, activityLevel: string, goal: string): number {
+function calculateDailyCalories(weight: number, height: number, activityLevel: string, goal: string, age: number): number {
   // BMR calculation
-  const bmr = calculateBMR(weight, height, 25); // Using a default age of 25
+  const bmr = calculateBMR(weight, height, age);
   const tdee = calculateTDEE(bmr, activityLevel);
 
   // Adjust based on the goal
