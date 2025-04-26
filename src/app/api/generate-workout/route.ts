@@ -304,103 +304,30 @@ function generateSystemPrompt(
   fitnessLevel: FitnessLevel,
   bmiCategory: BMICategory
 ): string {
-  const getExerciseGuidance = (bmiCat: BMICategory) => {
-    switch (bmiCat) {
-      case 'underweight':
-        return 'strength and resistance exercises';
-      case 'obese':
-        return 'low-impact, joint-friendly exercises';
-      default:
-        return 'balanced exercises';
-    }
-  };
-
-  const getProgressionGuidance = (level: FitnessLevel) => {
-    switch (level) {
-      case 'beginner':
-        return 'Focus on form and basic movements';
-      case 'intermediate':
-        return 'Introduce complex movements and increase intensity';
-      case 'advanced':
-        return 'Advanced techniques and high-intensity workouts';
-    }
-  };
-
-  const exerciseGuidance = getExerciseGuidance(bmiCategory);
-  const progressionGuidance = getProgressionGuidance(fitnessLevel);
-
-  return `You are a professional fitness trainer creating a personalized ${daysPerWeek}-day workout plan. The client's goal is ${goal}, their fitness level is ${fitnessLevel}, and their BMI category is ${bmiCategory}.
-
-Key requirements:
-1. Each workout day MUST have at least 4 main exercises (this is mandatory)
-2. Exercises should be appropriate for the client's fitness level (${fitnessLevel})
-3. Consider the client's BMI category (${bmiCategory}) when selecting exercises
-4. Include proper warmup and cooldown routines
-
-${getExerciseGuidance(bmiCategory)}
-
-${getProgressionGuidance(fitnessLevel)}
-
-Structure the workout plan in this exact JSON format:
+  return `You are a professional fitness coach. Generate a workout plan in JSON format with the following structure:
 {
-  "name": "string (catchy name for the workout plan)",
-  "description": "string (2-3 sentences describing the plan)",
+  "name": "string",
+  "description": "string",
   "days": [
     {
-      "name": "string (e.g., 'Day 1: Lower Body Focus')",
-      "focus": "string (main focus area)",
+      "name": "string",
+      "focus": "string",
+      "warmup": { ... },
       "exercises": [
-        // MINIMUM 4 exercises per day, each with this structure:
         {
           "name": "string",
           "sets": number,
-          "reps": "string (e.g., '12-15' or '30 seconds')",
-          "rest": "string (e.g., '60 seconds')",
-          "notes": "string",
-          "difficulty": "string",
-          "equipment": ["string"],
-          "muscles": ["string"],
-          "setup": "string",
-          "execution": {
-            "starting_position": "string",
-            "movement": "string",
-            "breathing": "string",
-            "tempo": "string",
-            "form_cues": ["string"]
-          },
-  "progression": {
-            "next_steps": "string",
-            "variations": ["string"],
-            "scaling_options": ["string"]
-          }
+          "reps": number,
+          "rest": "string",
+          "description": "string"
         }
       ],
-      "warmup": {
-        "duration": "string",
-        "exercises": [
-          {
-            "name": "string",
-            "duration": "string",
-            "description": "string",
-            "purpose": "string"
-          }
-        ]
-      },
-      "cooldown": {
-        "duration": "string",
-        "exercises": [
-          {
-            "name": "string",
-            "duration": "string",
-            "description": "string",
-            "purpose": "string"
-          }
-        ]
-      },
+      "cooldown": { ... },
       "notes": "string"
     }
   ]
-}`
+}
+IMPORTANT: Each day MUST have at least 4 exercises in the 'exercises' array, each with all fields filled. Do NOT return any text outside the JSON.`;
 }
 
 // At the top of the file, add or update type definitions
@@ -496,25 +423,19 @@ function validateWorkoutDay(day: WorkoutDay, index: number, expectedExercises: n
 
 function validateWorkoutPlan(plan: WorkoutPlan, expectedDays: number): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
-  const allExercises = new Set<string>();
-  
   if (!plan.name) errors.push('Missing workout plan name');
   if (!plan.description) errors.push('Missing workout plan description');
   if (!plan.days) errors.push('Missing workout days');
-  
   if (!Array.isArray(plan.days) || plan.days.length !== expectedDays) {
     errors.push(`Expected ${expectedDays} workout days but received ${plan.days?.length || 0}`);
   }
-  
   if (plan.days) {
     plan.days.forEach((day, index) => {
-      const dayErrors = validateWorkoutDay(day, index, 4, true);
-      if (dayErrors.length > 0) {
-        errors.push(`Day ${index + 1} validation errors:`, ...dayErrors.map(err => `  - ${err}`));
+      if (!Array.isArray(day.exercises) || day.exercises.length < 4) {
+        errors.push(`Day ${index + 1} has less than 4 exercises.`);
       }
     });
   }
-  
   return {
     isValid: errors.length === 0,
     errors
