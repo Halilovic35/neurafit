@@ -8,36 +8,25 @@ const { serverRuntimeConfig } = getConfig();
 let openai: OpenAI | null = null;
 
 try {
-  const apiKey = serverRuntimeConfig.OPENAI_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
-  
-  if (!apiKey) {
-    console.error('OPENAI_API_KEY environment variable is not set');
-  } else {
-    // Configure OpenAI client
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (apiKey) {
     const config: any = {
-      apiKey: apiKey,
-      timeout: 30000, // 30 second timeout
-      maxRetries: 3
+      apiKey,
+      timeout: 30000,
+      maxRetries: 3,
     };
-
-    // If using a project API key, set the base URL to the proxy API
     if (apiKey.startsWith('sk-proj-')) {
       config.baseURL = 'https://api.proxyapi.io/openai/v1';
-      config.defaultHeaders = {
-        'api-key': apiKey
-      };
+      console.log('OpenAI sk-proj key detected, using proxy baseURL:', config.baseURL);
     }
-
+    console.log('OpenAI API key (first 10 chars):', apiKey.slice(0, 10));
     openai = new OpenAI(config);
-    console.log('OpenAI client initialized with:', {
-      type: apiKey.startsWith('sk-proj-') ? 'project key' : 'standard key',
-      baseURL: config.baseURL || 'default',
-      timeout: config.timeout,
-      maxRetries: config.maxRetries
-    });
+  } else {
+    console.error('OPENAI_API_KEY is not set!');
   }
-} catch (error) {
-  console.error('Failed to initialize OpenAI client:', error);
+} catch (e) {
+  openai = null;
+  console.error('Failed to initialize OpenAI client:', e);
 }
 
 // Function to validate the OpenAI API key by making a test request
