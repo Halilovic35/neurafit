@@ -14,11 +14,9 @@ try {
       apiKey,
       timeout: 30000,
       maxRetries: 3,
+      baseURL: 'https://openai-proxy-production-c359.up.railway.app/openai/v1'
     };
-    if (apiKey.startsWith('sk-proj-')) {
-      config.baseURL = 'https://openai-proxy-production-c359.up.railway.app/openai/v1';
-      console.log('OpenAI sk-proj key detected, using proxy baseURL:', config.baseURL);
-    }
+    console.log('OpenAI client initialized with proxy baseURL:', config.baseURL);
     console.log('OpenAI API key (first 10 chars):', apiKey.slice(0, 10));
     openai = new OpenAI(config);
   } else {
