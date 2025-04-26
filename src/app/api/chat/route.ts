@@ -47,11 +47,10 @@ export async function OPTIONS() {
 // POST /api/chat
 export async function POST(request: NextRequest) {
   try {
-    // Check if OpenAI is available
     if (!openai) {
       console.error('OpenAI client not initialized');
       return NextResponse.json(
-        { error: 'Chat service is currently unavailable' },
+        { error: 'Chat service is currently unavailable. Please try again later.' },
         { status: 503 }
       );
     }
@@ -108,13 +107,12 @@ If they have a profile, here are their details: ${JSON.stringify(userWithDetails
         temperature: 0.7,
         max_tokens: 500,
       });
-
       const reply = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
       return NextResponse.json({ role: 'assistant', content: reply });
     } catch (openaiError: any) {
       console.error('OpenAI API call failed:', openaiError);
       return NextResponse.json(
-        { error: openaiError.message || 'Failed to get response from OpenAI API' },
+        { error: 'OpenAI is currently unavailable or rate limited. Please try again later.' },
         { status: 503 }
       );
     }

@@ -291,16 +291,12 @@ function generateFallbackMealPlan(
 
 // Add input validation function
 function validateMealPlanInput(body: any): { isValid: boolean; error?: string } {
-  const requiredFields = ['age', 'weight', 'height', 'goal', 'activityLevel', 'mealsPerDay'];
-  
-  // Check for missing fields
+  const requiredFields = ['age', 'weight', 'height', 'goal', 'activityLevel', 'mealsPerDay', 'gender'];
   for (const field of requiredFields) {
     if (!body[field]) {
       return { isValid: false, error: `Missing required field: ${field}` };
     }
   }
-
-  // Validate numeric fields
   const numericFields = ['age', 'weight', 'height', 'mealsPerDay'];
   for (const field of numericFields) {
     const value = parseFloat(body[field]);
@@ -308,24 +304,24 @@ function validateMealPlanInput(body: any): { isValid: boolean; error?: string } 
       return { isValid: false, error: `Invalid ${field}: must be a positive number` };
     }
   }
-
-  // Validate mealsPerDay range
   const mealsPerDay = parseInt(body.mealsPerDay);
   if (mealsPerDay < 2 || mealsPerDay > 6) {
     return { isValid: false, error: 'Meals per day must be between 2 and 6' };
   }
-
-  // Validate activity level
-  const validActivityLevels = ['sedentary', 'light', 'moderate', 'active', 'very active'];
-  if (!validActivityLevels.includes(body.activityLevel.toLowerCase())) {
+  const validActivityLevels = ['sedentary', 'light', 'moderate', 'active', 'very active', 'Light Activity', 'Moderate Activity', 'Very Active'];
+  if (!validActivityLevels.includes(body.activityLevel)) {
     return { isValid: false, error: 'Invalid activity level' };
   }
-
   return { isValid: true };
 }
 
 export async function POST(req: Request) {
   try {
+    const body = await req.json();
+    const validation = validateMealPlanInput(body);
+    if (!validation.isValid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
     // Get the token from cookies
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
@@ -360,15 +356,7 @@ export async function POST(req: Request) {
       activityLevel,
       mealsPerDay,
       restrictions = []
-    } = await req.json();
-
-    // Validate required fields
-    if (!age || !weight || !height || !goal || !activityLevel || !mealsPerDay) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
+    } = body;
 
     // Calculate BMI and daily calorie needs
     const bmi = calculateBMI(parseFloat(weight), parseFloat(height));

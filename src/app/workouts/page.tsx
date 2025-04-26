@@ -49,6 +49,7 @@ export default function WorkoutsPage() {
     daysPerWeek: '3'
   });
   const [completingWorkout, setCompletingWorkout] = useState<number | null>(null);
+  const [planGenerated, setPlanGenerated] = useState(false);
   const router = useRouter();
 
   // Load workout plan from localStorage on mount
@@ -326,6 +327,8 @@ export default function WorkoutsPage() {
 
       // Log success
       console.log('Successfully generated and validated workout plan');
+
+      setPlanGenerated(true);
     } catch (error) {
       console.error('Error generating workout plan:', error);
       setError(error instanceof Error ? error.message : 'An unexpected error occurred');
@@ -604,7 +607,7 @@ export default function WorkoutsPage() {
                     </p>
                   </div>
                 </motion.div>
-              ) : workoutPlan && workoutPlan.days && workoutPlan.days.length > 0 ? (
+              ) : planGenerated && workoutPlan && workoutPlan.days && workoutPlan.days.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
