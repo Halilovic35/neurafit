@@ -468,12 +468,17 @@ async function generateWorkoutPlan(
       model,
       messages,
       temperature,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
+      stream: false // Explicitly set stream to false
     });
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      throw new Error('No valid response from OpenAI');
+    }
 
     const content = response.choices[0].message.content;
     if (!content) {
-      throw new Error('No content received from OpenAI');
+      throw new Error('No content in OpenAI response');
     }
 
     console.log('Received response from OpenAI, attempting to parse...');
@@ -488,25 +493,25 @@ async function generateWorkoutPlan(
       console.error('Invalid JSON content:', content);
       throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
     }
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error generating workout plan:', error);
-    
-    // Check if we should retry
+    // Log detailed error information
+    console.error('Error details:', {
+      status: error.status,
+      message: error.message,
+      code: error.code,
+      type: error.type
+    });
+
     if (retryCount < maxRetries) {
-      console.log(`Retry attempt ${retryCount + 1} of ${maxRetries}`);
-      
-      // Simplify the prompt for retries
-      const simplifiedPrompt = `Generate a simpler ${daysPerWeek}-day workout plan. Focus on basic exercises and structure. Return ONLY valid JSON.`;
-      
-      messages.push({
-        role: "user",
-        content: simplifiedPrompt
-      });
-      
+      console.log(`Retrying workout plan generation (attempt ${retryCount + 1}/${maxRetries})...`);
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
       return generateWorkoutPlan(messages, retryCount + 1, daysPerWeek, goal, fitnessLevel, bmiCategory);
     }
-    
-    // If all retries failed, generate a fallback plan
+
+    // If all retries fail, return a fallback plan
+    console.log('All retries failed, returning fallback plan');
     return generateFallbackPlan(daysPerWeek, goal, fitnessLevel, bmiCategory);
   }
 }

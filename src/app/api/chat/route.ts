@@ -106,11 +106,29 @@ If they have a profile, here are their details: ${JSON.stringify(userWithDetails
         ],
         temperature: 0.7,
         max_tokens: 500,
+        stream: false // Explicitly set stream to false
       });
-      const reply = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+      
+      if (!completion.choices || completion.choices.length === 0) {
+        throw new Error('No completion choices returned from OpenAI');
+      }
+      
+      const reply = completion.choices[0]?.message?.content;
+      if (!reply) {
+        throw new Error('No message content in OpenAI response');
+      }
+      
       return NextResponse.json({ role: 'assistant', content: reply });
     } catch (openaiError: any) {
       console.error('OpenAI API call failed:', openaiError);
+      // Log the full error details for debugging
+      console.error('Error details:', {
+        status: openaiError.status,
+        message: openaiError.message,
+        code: openaiError.code,
+        type: openaiError.type
+      });
+      
       return NextResponse.json(
         { error: 'OpenAI is currently unavailable or rate limited. Please try again later.' },
         { status: 503 }

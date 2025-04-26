@@ -388,48 +388,7 @@ export async function POST(req: Request) {
       const messages: ChatCompletionMessageParam[] = [
         { 
           role: "system", 
-          content: `You are a professional nutritionist. You MUST respond with ONLY valid JSON, no other text. The meal plan should follow this EXACT structure:
-{
-  "name": "Name of the meal plan",
-  "description": "Description of the plan",
-  "totalCalories": 2000,
-  "days": [
-    {
-      "name": "Day 1",
-      "meals": [
-        {
-          "name": "Breakfast",
-          "time": "8:00 AM",
-          "calories": 500,
-          "foods": [
-            {
-              "name": "Food item",
-              "portion": "1 cup",
-              "calories": 200,
-              "protein": 15,
-              "carbs": 30,
-              "fats": 8
-            }
-          ],
-          "instructions": "How to prepare this meal"
-        }
-      ],
-      "snacks": [
-        {
-          "name": "Morning Snack",
-          "time": "10:30 AM",
-          "calories": 150,
-          "foods": ["Apple", "Almonds"]
-        }
-      ],
-      "totalCalories": 2000,
-      "notes": "Day-specific nutrition tips"
-    }
-  ],
-  "tips": [
-    "General nutrition tips"
-  ]
-}`
+          content: systemPrompt
         },
         { 
           role: "user", 
@@ -448,100 +407,61 @@ export async function POST(req: Request) {
         model: "gpt-3.5-turbo",
         messages,
         temperature: 0.7,
-        max_tokens: 2000
+        max_tokens: 2000,
+        stream: false // Explicitly set stream to false
       });
 
+      // Race between the OpenAI request and timeout
       const response = await Promise.race([openaiPromise, timeoutPromise]) as Awaited<typeof openaiPromise>;
+      
+      if (!response || !response.choices || response.choices.length === 0) {
+        throw new Error('No valid response from OpenAI');
+      }
 
       const content = response.choices[0].message.content;
       if (!content) {
-        throw new Error('No content received from OpenAI');
+        throw new Error('No content in OpenAI response');
       }
-
-      console.log('Received response from OpenAI:', content);
 
       try {
-        // Try to parse the JSON response
-        const mealPlan = JSON.parse(content.trim());
-        console.log('Successfully parsed JSON response');
-
-        // Validate meal plan structure
-        if (!mealPlan.name || !mealPlan.description) {
-          throw new Error('Invalid meal plan: missing name or description');
-        }
-
-        if (!mealPlan.days || !Array.isArray(mealPlan.days)) {
-          throw new Error('Invalid meal plan: missing or invalid days array');
-        }
-
-        // Validate each day
-        mealPlan.days.forEach((day: any, index: number) => {
-          if (!day.name) {
-            throw new Error(`Day ${index + 1} is missing name`);
-          }
-          if (!day.meals || !Array.isArray(day.meals)) {
-            throw new Error(`Day ${index + 1} is missing meals array`);
-          }
-          if (day.meals.length !== parseInt(mealsPerDay)) {
-            throw new Error(`Day ${index + 1} has incorrect number of meals`);
-          }
-        });
-
-        // Save the meal plan to the database
-        const savedPlan = await savePlanToDatabase(mealPlan, decoded.id, {
+        const mealPlan = JSON.parse(content);
+        // Save the plan to database
+        await savePlanToDatabase(mealPlan, user.id, {
           bmi,
           bmiCategory,
-          dailyCalories,
           goal,
           activityLevel,
-          mealsPerDay,
-          restrictions
+          daysPerWeek: 7 // Default to 7 days for meal plans
         });
 
-        return NextResponse.json({
-          mealPlan,
-          planId: savedPlan.id
-        });
-
+        return NextResponse.json(mealPlan);
       } catch (parseError) {
         console.error('Failed to parse OpenAI response:', parseError);
-        console.error('Raw content:', content);
-        
-        // If parsing failed, try to use the fallback plan
-        console.log('Using fallback plan due to parsing error');
-        const fallbackPlan = generateFallbackMealPlan(
-          '25', // default age
-          weight,
-          height,
-          goal,
-          activityLevel,
-          restrictions,
-          mealsPerDay
-        );
-
-        const savedPlan = await savePlanToDatabase(fallbackPlan, decoded.id, {
-          bmi,
-          bmiCategory,
-          dailyCalories,
-          goal,
-          activityLevel,
-          mealsPerDay,
-          restrictions
-        });
-
-        return NextResponse.json({
-          mealPlan: fallbackPlan,
-          planId: savedPlan.id,
-          message: 'Using fallback meal plan due to parsing error'
-        });
+        console.error('Raw response:', content);
+        throw new Error('Invalid JSON response from OpenAI');
       }
-
     } catch (error: any) {
       console.error('Error generating meal plan:', error);
-      return NextResponse.json(
-        { error: `Failed to generate meal plan: ${error.message}` },
-        { status: 500 }
+      // Log detailed error information
+      console.error('Error details:', {
+        status: error.status,
+        message: error.message,
+        code: error.code,
+        type: error.type
+      });
+
+      // Return a fallback meal plan if OpenAI fails
+      const fallbackPlan = generateFallbackMealPlan(
+        age,
+        weight,
+        height,
+        goal,
+        activityLevel,
+        restrictions,
+        mealsPerDay
       );
+      
+      return NextResponse.json(fallbackPlan);
     }
   } catch (error: any) {
     console.error('Error in meal plan endpoint:', error);
