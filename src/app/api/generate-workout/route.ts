@@ -67,7 +67,7 @@ interface WorkoutDay {
   };
 }
 
-interface WorkoutPlan {
+export interface WorkoutPlan {
   id?: string;
   userId: string;
   createdAt?: Date;
@@ -625,7 +625,7 @@ type WorkoutPlanResponse = {
 };
 
 // Update the validation function to match the new structure
-export function validateWorkoutPlan(plan: WorkoutPlan): { isValid: boolean; errors: string[] } {
+function validateWorkoutPlan(plan: WorkoutPlan): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Check for plan and days
