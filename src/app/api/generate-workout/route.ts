@@ -15,12 +15,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'neurafit-secret-key-2024-secure-an
 type BMICategory = 'underweight' | 'normal' | 'overweight' | 'obese';
 type FocusArea = 'Full Body' | 'Upper Body & Core' | 'Lower Body & Core' | 'Endurance & Cardio';
 
-type Exercise = {
+interface Exercise {
   name: string;
   sets: number;
-  reps: number;
+  reps: number | string;  // Allow both number and string for reps
   restTime: string;
-  description?: string;
+  description: string;
   difficulty?: string;
   equipment?: string[];
   muscles?: string[];
@@ -37,7 +37,7 @@ type Exercise = {
     variations: string[];
     scaling_options: string[];
   };
-};
+}
 
 type WarmUpCoolDown = {
   name: string;
@@ -63,46 +63,275 @@ type WorkoutDay = {
   notes?: string;
 };
 
-type WorkoutPlan = {
+// Update the WorkoutPlan interface to match Prisma schema exactly
+interface WorkoutPlan {
   name: string;
   description: string;
   days: WorkoutDay[];
-  goal?: string;
-  level?: FitnessLevel;
-  daysPerWeek?: number;
-  equipment?: string[];
-  notes?: string;
-  tips?: string[];
-};
+  exercises?: Prisma.JsonValue[];
+  bmi: number;
+  bmiCategory: string;
+  fitnessLevel: string;
+  goal: string;
+  daysPerWeek: number;
+  weekNumber?: number;
+}
 
-// Basic exercise database by focus area and fitness level
+// Use Prisma's InputJsonValue type
+type InputJsonValue = string | number | boolean | InputJsonObject | InputJsonArray;
+type InputJsonObject = { [Key in string]?: InputJsonValue };
+type InputJsonArray = InputJsonValue[];
+
+// Enhanced exercise database with more exercises and detailed information
 const exercisesByFocus: Record<FocusArea, Record<FitnessLevel, Exercise[]>> = {
   'Full Body': {
     beginner: [
       {
         name: 'Bodyweight Squats',
         sets: 3,
-        reps: 10,
+        reps: '10-12',
         restTime: '60 seconds',
-        description: 'Basic squat movement'
+        description: 'Fundamental lower body exercise that targets multiple muscle groups',
+        difficulty: 'Beginner',
+        equipment: ['None'],
+        muscles: ['Quadriceps', 'Glutes', 'Hamstrings', 'Core'],
+        setup: 'Stand with feet shoulder-width apart, toes slightly turned out',
+        execution: {
+          starting_position: 'Stand tall with chest up and core engaged',
+          movement: 'Lower body by bending knees and hips, keeping chest up',
+          breathing: 'Inhale on the way down, exhale on the way up',
+          tempo: '2-1-2',
+          form_cues: [
+            'Keep knees aligned with toes',
+            'Maintain neutral spine',
+            'Push through heels to stand'
+          ]
+        },
+        progression: {
+          next_steps: 'Add weight or try single leg variations',
+          variations: ['Goblet Squats', 'Split Squats'],
+          scaling_options: ['Box Squats', 'Assisted Squats']
+        }
+      },
+      {
+        name: 'Push-Ups',
+        sets: 3,
+        reps: '8-10',
+        restTime: '60 seconds',
+        description: 'Classic upper body exercise that builds chest and arm strength',
+        difficulty: 'Beginner',
+        equipment: ['None'],
+        muscles: ['Chest', 'Shoulders', 'Triceps', 'Core'],
+        setup: 'Start in high plank position with hands slightly wider than shoulders',
+        execution: {
+          starting_position: 'Body in straight line from head to heels',
+          movement: 'Lower body until chest nearly touches ground, then push back up',
+          breathing: 'Inhale on the way down, exhale on the way up',
+          tempo: '2-1-2',
+          form_cues: [
+            'Keep elbows at 45-degree angle',
+            'Maintain straight body line',
+            'Engage core throughout'
+          ]
+        },
+        progression: {
+          next_steps: 'Increase reps or try more challenging variations',
+          variations: ['Wide Grip Push-Ups', 'Diamond Push-Ups'],
+          scaling_options: ['Knee Push-Ups', 'Incline Push-Ups']
+        }
+      },
+      {
+        name: 'Plank',
+        sets: 3,
+        reps: '30-45 seconds',
+        restTime: '60 seconds',
+        description: 'Core stability exercise that improves posture and strength',
+        difficulty: 'Beginner',
+        equipment: ['Exercise Mat'],
+        muscles: ['Core', 'Shoulders', 'Glutes'],
+        setup: 'Start in push-up position with forearms on ground',
+        execution: {
+          starting_position: 'Body in straight line from head to heels',
+          movement: 'Hold position while maintaining form',
+          breathing: 'Breathe steadily throughout',
+          tempo: 'Static hold',
+          form_cues: [
+            'Keep core tight',
+            'Don\'t let hips sag',
+            'Look slightly ahead'
+          ]
+        },
+        progression: {
+          next_steps: 'Increase hold time or add movement',
+          variations: ['Side Plank', 'Plank with Leg Lift'],
+          scaling_options: ['Knee Plank']
+        }
       }
     ],
     intermediate: [
       {
-        name: 'Push-Ups',
+        name: 'Jump Squats',
         sets: 3,
-        reps: 12,
-        restTime: '60 seconds',
-        description: 'Standard push-up'
+        reps: '10-12',
+        restTime: '60-90 seconds',
+        description: 'Explosive lower body exercise that builds power',
+        difficulty: 'Intermediate',
+        equipment: ['None'],
+        muscles: ['Quadriceps', 'Glutes', 'Hamstrings', 'Calves'],
+        setup: 'Stand with feet shoulder-width apart',
+        execution: {
+          starting_position: 'Arms at sides or in front for balance',
+          movement: 'Squat down then explode up into a jump',
+          breathing: 'Inhale on the way down, exhale on the way up',
+          tempo: 'Explosive',
+          form_cues: [
+            'Land softly on balls of feet',
+            'Keep knees aligned with toes',
+            'Use arms for momentum'
+          ]
+        },
+        progression: {
+          next_steps: 'Add height or try single leg variations',
+          variations: ['Tuck Jump Squats', 'Split Jump Squats'],
+          scaling_options: ['Box Jump Squats']
+        }
+      },
+      {
+        name: 'Burpees',
+        sets: 3,
+        reps: '8-10',
+        restTime: '60-90 seconds',
+        description: 'Full body explosive movement that improves conditioning',
+        difficulty: 'Intermediate',
+        equipment: ['None'],
+        muscles: ['Full Body'],
+        setup: 'Stand with feet shoulder-width apart',
+        execution: {
+          starting_position: 'Stand tall with arms at sides',
+          movement: 'Squat down, kick feet back, do push-up, jump feet in, explode up',
+          breathing: 'Inhale during squat, exhale during jump',
+          tempo: 'Explosive',
+          form_cues: [
+            'Maintain proper push-up form',
+            'Land softly from jump',
+            'Keep core engaged throughout'
+          ]
+        },
+        progression: {
+          next_steps: 'Add push-up or increase speed',
+          variations: ['Burpee Box Jumps', 'Burpee Pull-Ups'],
+          scaling_options: ['Step-Back Burpees']
+        }
       }
     ],
     advanced: [
       {
-        name: 'Burpees',
-        sets: 4,
-        reps: 15,
-        restTime: '45 seconds',
-        description: 'Full body explosive movement'
+        name: 'Pistol Squats',
+        sets: 3,
+        reps: '6-8 per leg',
+        restTime: '90 seconds',
+        description: 'Advanced single leg squat variation that builds strength and balance',
+        difficulty: 'Advanced',
+        equipment: ['None'],
+        muscles: ['Quadriceps', 'Glutes', 'Core', 'Balance'],
+        setup: 'Stand on one leg with other leg extended forward',
+        execution: {
+          starting_position: 'Arms extended forward for balance',
+          movement: 'Lower body while keeping extended leg straight',
+          breathing: 'Inhale on the way down, exhale on the way up',
+          tempo: '3-0-2',
+          form_cues: [
+            'Keep chest up',
+            'Maintain balance',
+            'Control descent'
+          ]
+        },
+        progression: {
+          next_steps: 'Add weight or try jumping variation',
+          variations: ['Weighted Pistol Squats', 'Jumping Pistol Squats'],
+          scaling_options: ['Assisted Pistol Squats']
+        }
+      },
+      {
+        name: 'Handstand Push-Ups',
+        sets: 3,
+        reps: '5-8',
+        restTime: '90-120 seconds',
+        description: 'Advanced overhead pressing movement that builds shoulder strength',
+        difficulty: 'Advanced',
+        equipment: ['Wall'],
+        muscles: ['Shoulders', 'Triceps', 'Core'],
+        setup: 'Start in handstand position against wall',
+        execution: {
+          starting_position: 'Body straight, hands shoulder-width apart',
+          movement: 'Lower head to ground, then press back up',
+          breathing: 'Inhale on the way down, exhale on the way up',
+          tempo: '2-0-2',
+          form_cues: [
+            'Keep core tight',
+            'Control descent',
+            'Maintain straight body line'
+          ]
+        },
+        progression: {
+          next_steps: 'Try freestanding or add weight',
+          variations: ['Freestanding Handstand Push-Ups', 'Deficit Handstand Push-Ups'],
+          scaling_options: ['Pike Push-Ups']
+        }
+      },
+      {
+        name: 'Muscle-Ups',
+        sets: 3,
+        reps: '3-5',
+        restTime: '120 seconds',
+        description: 'Advanced upper body pulling and pushing movement',
+        difficulty: 'Advanced',
+        equipment: ['Pull-up Bar'],
+        muscles: ['Back', 'Chest', 'Shoulders', 'Arms'],
+        setup: 'Hang from pull-up bar with overhand grip',
+        execution: {
+          starting_position: 'Arms fully extended',
+          movement: 'Pull up and transition over the bar',
+          breathing: 'Inhale before movement, exhale during transition',
+          tempo: 'Explosive',
+          form_cues: [
+            'Use momentum from pull-up',
+            'Keep bar close to body',
+            'Control descent'
+          ]
+        },
+        progression: {
+          next_steps: 'Try strict muscle-ups or add weight',
+          variations: ['Strict Muscle-Ups', 'Weighted Muscle-Ups'],
+          scaling_options: ['Assisted Muscle-Ups']
+        }
+      },
+      {
+        name: 'Dragon Flags',
+        sets: 3,
+        reps: '6-8',
+        restTime: '90 seconds',
+        description: 'Advanced core exercise',
+        difficulty: 'Advanced',
+        equipment: ['Bench'],
+        muscles: ['Core', 'Hip Flexors'],
+        setup: 'Lie on bench with hands gripping behind head',
+        execution: {
+          starting_position: 'Body straight, legs extended',
+          movement: 'Lift legs and lower body while keeping core tight',
+          breathing: 'Exhale on the way up, inhale on the way down',
+          tempo: '2-1-2',
+          form_cues: [
+            'Keep core engaged',
+            'Control movement',
+            'Don\'t use momentum'
+          ]
+        },
+        progression: {
+          next_steps: 'Try hanging variation or add weight',
+          variations: ['Hanging Dragon Flags', 'Weighted Dragon Flags'],
+          scaling_options: ['Bent Knee Dragon Flags']
+        }
       }
     ]
   },
@@ -421,24 +650,121 @@ function validateWorkoutDay(day: WorkoutDay, index: number, expectedExercises: n
   return errors;
 }
 
+// Enhanced validation function
 function validateWorkoutPlan(plan: WorkoutPlan, expectedDays: number): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (!plan.name) errors.push('Missing workout plan name');
-  if (!plan.description) errors.push('Missing workout plan description');
-  if (!plan.days) errors.push('Missing workout days');
-  if (!Array.isArray(plan.days) || plan.days.length !== expectedDays) {
-    errors.push(`Expected ${expectedDays} workout days but received ${plan.days?.length || 0}`);
+
+  // Basic plan validation
+  if (!plan.name) errors.push('Workout plan is missing a name');
+  if (!plan.description) errors.push('Workout plan is missing a description');
+  if (!plan.days || plan.days.length !== expectedDays) {
+    errors.push(`Workout plan must have exactly ${expectedDays} days`);
   }
-  if (plan.days) {
-    plan.days.forEach((day, index) => {
-      if (!Array.isArray(day.exercises) || day.exercises.length < 4) {
-        errors.push(`Day ${index + 1} has less than 4 exercises.`);
+
+  // Validate each day
+  plan.days.forEach((day, index) => {
+    // Day structure validation
+    if (!day.name) errors.push(`Day ${index + 1} is missing a name`);
+    if (!day.focus) errors.push(`Day ${index + 1} is missing a focus area`);
+    if (!day.exercises || day.exercises.length < 4) {
+      errors.push(`Day ${index + 1} must have at least 4 exercises`);
+    }
+
+    // Exercise validation
+    day.exercises.forEach((exercise, exIndex) => {
+      if (!exercise.name) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing a name`);
+      if (!exercise.sets || exercise.sets < 1) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} has invalid sets`);
+      if (!exercise.reps) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing reps`);
+      if (!exercise.restTime) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing rest time`);
+      if (!exercise.description) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing description`);
+      if (!exercise.difficulty) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing difficulty level`);
+      if (!exercise.equipment || !Array.isArray(exercise.equipment)) {
+        errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} has invalid equipment list`);
       }
+      if (!exercise.muscles || !Array.isArray(exercise.muscles)) {
+        errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} has invalid muscles list`);
+      }
+      if (!exercise.setup) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing setup instructions`);
+      if (!exercise.execution) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing execution details`);
+      if (!exercise.progression) errors.push(`Day ${index + 1}, Exercise ${exIndex + 1} is missing progression information`);
     });
-  }
+
+    // Warmup and cooldown validation
+    if (!day.warmup || !day.warmup.exercises || day.warmup.exercises.length < 3) {
+      errors.push(`Day ${index + 1} has insufficient warmup exercises (minimum 3 required)`);
+    } else {
+      day.warmup.exercises.forEach((exercise, exIndex) => {
+        if (!exercise.name) errors.push(`Day ${index + 1}, Warmup Exercise ${exIndex + 1} is missing a name`);
+        if (!exercise.duration) errors.push(`Day ${index + 1}, Warmup Exercise ${exIndex + 1} is missing duration`);
+        if (!exercise.description) errors.push(`Day ${index + 1}, Warmup Exercise ${exIndex + 1} is missing description`);
+        if (!exercise.purpose) errors.push(`Day ${index + 1}, Warmup Exercise ${exIndex + 1} is missing purpose`);
+      });
+    }
+
+    if (!day.cooldown || !day.cooldown.exercises || day.cooldown.exercises.length < 3) {
+      errors.push(`Day ${index + 1} has insufficient cooldown exercises (minimum 3 required)`);
+    } else {
+      day.cooldown.exercises.forEach((exercise, exIndex) => {
+        if (!exercise.name) errors.push(`Day ${index + 1}, Cooldown Exercise ${exIndex + 1} is missing a name`);
+        if (!exercise.duration) errors.push(`Day ${index + 1}, Cooldown Exercise ${exIndex + 1} is missing duration`);
+        if (!exercise.description) errors.push(`Day ${index + 1}, Cooldown Exercise ${exIndex + 1} is missing description`);
+        if (!exercise.purpose) errors.push(`Day ${index + 1}, Cooldown Exercise ${exIndex + 1} is missing purpose`);
+      });
+    }
+  });
+
   return {
     isValid: errors.length === 0,
     errors
+  };
+}
+
+// Enhanced progression system
+function calculateProgression(
+  fitnessLevel: FitnessLevel,
+  bmiCategory: BMICategory,
+  goal: string,
+  weekNumber: number = 1
+): { sets: number; reps: string; restTime: string } {
+  // Base values for first week
+  const baseSets = fitnessLevel === 'beginner' ? 3 : fitnessLevel === 'intermediate' ? 4 : 5;
+  const baseReps = fitnessLevel === 'beginner' ? '8-10' : fitnessLevel === 'intermediate' ? '10-12' : '12-15';
+  const baseRest = fitnessLevel === 'beginner' ? '90-120 seconds' : fitnessLevel === 'intermediate' ? '60-90 seconds' : '45-60 seconds';
+  
+  // Adjust based on BMI category
+  const bmiAdjustment = bmiCategory === 'obese' ? 1 : bmiCategory === 'overweight' ? 0.5 : 0;
+  const adjustedSets = Math.max(2, baseSets - bmiAdjustment);
+  
+  // Weekly progression
+  const weeklyProgression = Math.min(weekNumber - 1, 3); // Cap at 3 weeks of progression
+  const progressionMultiplier = 1 + (weeklyProgression * 0.1); // 10% increase per week
+  
+  // Adjust based on goal
+  if (goal.toLowerCase().includes('strength')) {
+    return {
+      sets: Math.ceil(adjustedSets * progressionMultiplier),
+      reps: '4-6',
+      restTime: '120-180 seconds'
+    };
+  } else if (goal.toLowerCase().includes('endurance')) {
+    return {
+      sets: Math.ceil((adjustedSets + 1) * progressionMultiplier),
+      reps: '15-20',
+      restTime: '30-45 seconds'
+    };
+  } else if (goal.toLowerCase().includes('hypertrophy')) {
+    return {
+      sets: Math.ceil(adjustedSets * progressionMultiplier),
+      reps: '8-12',
+      restTime: '60-90 seconds'
+    };
+  }
+  
+  // Default progression for general fitness
+  return {
+    sets: Math.ceil(adjustedSets * progressionMultiplier),
+    reps: baseReps,
+    restTime: baseRest
   };
 }
 
@@ -448,7 +774,8 @@ async function generateWorkoutPlan(
   daysPerWeek: string,
   goal: string,
   fitnessLevel: FitnessLevel,
-  bmiCategory: BMICategory
+  bmiCategory: BMICategory,
+  weekNumber: number = 1
 ): Promise<WorkoutPlan> {
   const maxRetries = 3;
   
@@ -464,12 +791,34 @@ async function generateWorkoutPlan(
     const maxTokens = retryCount === 0 ? 4000 : 2000;
     const temperature = retryCount === 0 ? 0.7 : 0.3; // Lower temperature for retries
     
+    // Calculate progression parameters
+    const progression = calculateProgression(fitnessLevel, bmiCategory, goal, weekNumber);
+    
+    // Generate exercise guidance based on goal and fitness level
+    const exerciseGuidance = generateExerciseGuidance(goal, fitnessLevel, bmiCategory);
+    
+    // Generate progression guidance
+    const progressionGuidance = generateProgressionGuidance(goal, fitnessLevel, weekNumber);
+    
+    // Update system prompt with progression information
+    const systemPrompt = generateWorkoutTemplate(
+      daysPerWeek,
+      goal,
+      fitnessLevel,
+      bmiCategory,
+      exerciseGuidance,
+      progressionGuidance
+    );
+    
     const response = await openai.chat.completions.create({
       model,
-      messages,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
       temperature,
       max_tokens: maxTokens,
-      stream: false // Explicitly set stream to false
+      stream: false
     });
 
     if (!response || !response.choices || response.choices.length === 0) {
@@ -482,11 +831,28 @@ async function generateWorkoutPlan(
     }
 
     console.log('Received response from OpenAI, attempting to parse...');
-    console.log('Raw response:', content.substring(0, 500) + '...'); // Log first 500 chars for debugging
     
     try {
-      const parsedContent = JSON.parse(content);
-      console.log('Successfully parsed JSON response');
+      // Clean the response content
+      const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const parsedContent = JSON.parse(cleanedContent);
+      
+      // Validate the workout plan
+      const validation = validateWorkoutPlan(parsedContent, parseInt(daysPerWeek));
+      if (!validation.isValid) {
+        throw new Error(`Invalid workout plan: ${validation.errors.join(', ')}`);
+      }
+      
+      // Apply progression to exercises
+      parsedContent.days.forEach((day: WorkoutDay) => {
+        day.exercises.forEach((exercise: Exercise) => {
+          exercise.sets = progression.sets;
+          exercise.reps = progression.reps;
+          exercise.restTime = progression.restTime;
+        });
+      });
+      
+      console.log('Successfully generated and validated workout plan');
       return parsedContent as WorkoutPlan;
     } catch (parseError: unknown) {
       console.error('JSON parsing error:', parseError);
@@ -495,25 +861,77 @@ async function generateWorkoutPlan(
     }
   } catch (error: any) {
     console.error('Error generating workout plan:', error);
-    // Log detailed error information
-    console.error('Error details:', {
-      status: error.status,
-      message: error.message,
-      code: error.code,
-      type: error.type
-    });
-
+    
     if (retryCount < maxRetries) {
       console.log(`Retrying workout plan generation (attempt ${retryCount + 1}/${maxRetries})...`);
-      // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-      return generateWorkoutPlan(messages, retryCount + 1, daysPerWeek, goal, fitnessLevel, bmiCategory);
+      return generateWorkoutPlan(messages, retryCount + 1, daysPerWeek, goal, fitnessLevel, bmiCategory, weekNumber);
     }
-
+    
     // If all retries fail, return a fallback plan
     console.log('All retries failed, returning fallback plan');
     return generateFallbackPlan(daysPerWeek, goal, fitnessLevel, bmiCategory);
   }
+}
+
+// Helper function to generate exercise guidance
+function generateExerciseGuidance(goal: string, fitnessLevel: FitnessLevel, bmiCategory: BMICategory): string {
+  const guidance: string[] = [];
+  
+  if (goal.toLowerCase().includes('strength')) {
+    guidance.push('compound movements with proper form');
+    guidance.push('progressive overload');
+    guidance.push('adequate rest between sets');
+  } else if (goal.toLowerCase().includes('endurance')) {
+    guidance.push('higher rep ranges');
+    guidance.push('circuit-style training');
+    guidance.push('minimal rest between exercises');
+  } else if (goal.toLowerCase().includes('hypertrophy')) {
+    guidance.push('moderate rep ranges (8-12)');
+    guidance.push('time under tension');
+    guidance.push('controlled movements');
+  }
+  
+  if (bmiCategory === 'obese' || bmiCategory === 'overweight') {
+    guidance.push('low-impact variations');
+    guidance.push('proper joint alignment');
+    guidance.push('gradual progression');
+  }
+  
+  if (fitnessLevel === 'beginner') {
+    guidance.push('master basic movements first');
+    guidance.push('focus on form over weight');
+    guidance.push('use scaling options when needed');
+  }
+  
+  return guidance.join(', ');
+}
+
+// Helper function to generate progression guidance
+function generateProgressionGuidance(goal: string, fitnessLevel: FitnessLevel, weekNumber: number): string {
+  const guidance: string[] = [];
+  
+  if (weekNumber > 1) {
+    guidance.push(`Week ${weekNumber} progression: Increase intensity by 10%`);
+  }
+  
+  if (goal.toLowerCase().includes('strength')) {
+    guidance.push('Focus on increasing weight while maintaining form');
+    guidance.push('Keep reps in the 4-6 range');
+  } else if (goal.toLowerCase().includes('endurance')) {
+    guidance.push('Focus on increasing duration or reducing rest time');
+    guidance.push('Maintain form throughout higher rep ranges');
+  } else if (goal.toLowerCase().includes('hypertrophy')) {
+    guidance.push('Focus on time under tension and muscle contraction');
+    guidance.push('Gradually increase weight while maintaining 8-12 rep range');
+  }
+  
+  if (fitnessLevel === 'beginner') {
+    guidance.push('Master form before increasing intensity');
+    guidance.push('Use scaling options when needed');
+  }
+  
+  return guidance.join('. ');
 }
 
 // Remove both existing generateFallbackPlan functions and replace with this one
@@ -680,7 +1098,7 @@ export async function POST(req: Request) {
   try {
     const userId = await ensureDefaultUser();
     const body = await req.json();
-    const { age, height, weight, gender, goal, fitnessLevel, daysPerWeek } = body;
+    const { age, height, weight, gender, goal, fitnessLevel, daysPerWeek, weekNumber = 1 } = body;
 
     // Input validation
     if (!age || !height || !weight || !gender || !goal || !fitnessLevel || !daysPerWeek) {
@@ -695,9 +1113,10 @@ export async function POST(req: Request) {
     const numericHeight = parseFloat(height);
     const numericWeight = parseFloat(weight);
     const numericDaysPerWeek = parseInt(daysPerWeek);
+    const numericWeekNumber = parseInt(weekNumber);
 
     // Validate numeric values
-    if (isNaN(numericAge) || isNaN(numericHeight) || isNaN(numericWeight) || isNaN(numericDaysPerWeek)) {
+    if (isNaN(numericAge) || isNaN(numericHeight) || isNaN(numericWeight) || isNaN(numericDaysPerWeek) || isNaN(numericWeekNumber)) {
       return NextResponse.json(
         { error: 'Invalid numeric values' },
         { status: 400 }
@@ -758,7 +1177,8 @@ export async function POST(req: Request) {
             numericDaysPerWeek.toString(),
             goal,
             fitnessLevel as FitnessLevel,
-            bmiCategory
+            bmiCategory,
+            numericWeekNumber
           );
 
           // Race between the workout plan generation and timeout
@@ -771,7 +1191,8 @@ export async function POST(req: Request) {
             bmiCategory,
             fitnessLevel,
             goal,
-            daysPerWeek: numericDaysPerWeek
+            daysPerWeek: numericDaysPerWeek,
+            weekNumber: numericWeekNumber
           });
 
           return NextResponse.json(workoutPlan);
@@ -808,25 +1229,59 @@ export async function POST(req: Request) {
   }
 }
 
-// Helper function to save plan to database
-async function savePlanToDatabase(plan: any, userId: string, metadata: {
+// Update the savePlanToDatabase function to match Prisma schema
+async function savePlanToDatabase(plan: WorkoutPlan, userId: string, metadata: {
   bmi: number;
   bmiCategory: string;
   fitnessLevel: string;
   goal: string;
   daysPerWeek: number;
+  weekNumber?: number;
 }) {
+  // Convert the plan to a JSON-serializable object
+  const planData = {
+    ...plan,
+    days: plan.days.map(day => ({
+      ...day,
+      exercises: day.exercises.map(exercise => ({
+        ...exercise,
+        execution: exercise.execution,
+        progression: exercise.progression
+      }))
+    }))
+  };
+
+  // Create the workout plan with proper typing
   return await prisma.workoutPlan.create({
     data: {
-      userId: userId,
+      userId,
       name: plan.name,
       description: plan.description,
-      exercises: [plan],
+      exercises: [planData],
       bmi: metadata.bmi,
       bmiCategory: metadata.bmiCategory,
       fitnessLevel: metadata.fitnessLevel,
       goal: metadata.goal,
-      daysPerWeek: metadata.daysPerWeek
+      daysPerWeek: metadata.daysPerWeek,
+      weekNumber: metadata.weekNumber || 1
     },
   });
+}
+
+export async function generateWorkoutPlan(userProfile: {
+  age: number;
+  height: number;
+  weight: number;
+  gender: string;
+  fitnessLevel: string;
+  goal: string;
+  daysPerWeek: number;
+  bmi: number;
+  bmiCategory: string;
+}): Promise<WorkoutPlan> {
+  // Implementation
+}
+
+export function validateWorkoutPlan(plan: any): { isValid: boolean; errors: string[] } {
+  // Implementation
 } 

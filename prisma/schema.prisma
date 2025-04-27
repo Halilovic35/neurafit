@@ -70,6 +70,7 @@ model WorkoutPlan {
   fitnessLevel String
   goal        String
   daysPerWeek Int
+  weekNumber  Int       @default(1)
 }
 
 model MealPlan {

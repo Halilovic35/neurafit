@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Workout Plan Generation</title>
+</head>
+<body>
+    <h1>Test Workout Plan Generation</h1>
+    <pre id="response"></pre>
+
+    <script>
+        async function testWorkoutGeneration() {
+            try {
+                const response = await fetch('http://localhost:3002/api/generate-workout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        age: 25,
+                        height: 170,
+                        weight: 80,
+                        gender: 'male',
+                        goal: 'weight-loss',
+                        fitnessLevel: 'beginner',
+                        daysPerWeek: '3'
+                    })
+                });
+
+                const data = await response.json();
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        testWorkoutGeneration();
+    </script>
+</body>
+</html> 
