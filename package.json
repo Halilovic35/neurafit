@@ -67,5 +67,8 @@
   },
   "prisma": {
     "seed": "ts-node --project prisma/tsconfig.json prisma/seed.ts"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
