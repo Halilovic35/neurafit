@@ -1,26 +1,45 @@
 import { PrismaClient } from '@prisma/client';
 
+// Log the database URL (without sensitive info) for debugging
+const dbUrl = process.env.DATABASE_URL;
+if (dbUrl) {
+  const maskedUrl = dbUrl.replace(/\/\/[^@]+@/, '//****:****@');
+  console.log('Database URL format:', maskedUrl);
+} else {
+  console.error('DATABASE_URL is not set!');
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: ['error', 'warn']
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: ['error', 'warn'],
+  errorFormat: 'pretty',
 });
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-// Ensure the prisma client is properly initialized
-prisma.$connect()
-  .then(() => {
+// Initialize database connection
+async function initDatabase() {
+  try {
+    await prisma.$connect();
     console.log('Successfully connected to the database');
-  })
-  .catch((e: Error) => {
+    
+    // Test the connection with a simple query
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('Database connection test successful');
+    
+  } catch (e) {
     console.error('Failed to connect to the database:', e);
-    process.exit(1);
-  });
+    // Don't exit the process, let the application handle the error
+    throw e;
+  }
+}
 
-export { prisma };
+// Initialize the database connection
+initDatabase().catch(console.error);
+
 export default prisma; 

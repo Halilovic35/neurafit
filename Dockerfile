@@ -11,9 +11,11 @@ RUN npm ci
 COPY . .
 
 # Generate Prisma Client and set default env vars for build
+ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV OPENAI_API_KEY="dummy-key-for-build"
-ENV DATABASE_URL="dummy-url-for-build"
+# Use a dummy postgres URL for Prisma generate
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
 # Generate Prisma client and build
 RUN npx prisma generate
