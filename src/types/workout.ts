@@ -47,9 +47,30 @@ export interface WorkoutDay {
   notes: string;
 }
 
+export interface FocusArea {
+  name: string;
+  priority: string;
+}
+
 export interface WorkoutPlan {
   id?: string;
-  name: string;
-  description: string;
-  days: WorkoutDay[];
+  userId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  plan: {
+    days: WorkoutDay[];
+    focusAreas: FocusArea[];
+    progression: {
+      level: string;
+      weekNumber: number;
+    };
+  };
+  metadata: {
+    bmi: number;
+    bmiCategory: string;
+    fitnessLevel: string;
+    goal: string;
+    daysPerWeek: number;
+    weekNumber: number;
+  };
 } 

@@ -134,7 +134,7 @@ export default function WorkoutsPage() {
           }
           
           // Find the first incomplete day
-          const nextActiveDayIndex = workoutPlan.days.findIndex((_, index) => {
+          const nextActiveDayIndex = workoutPlan.plan.days.findIndex((_, index) => {
             return !currentPlanCompletedWorkouts.some((workout: CompletedWorkout) => 
               workout.dayIndex === index
             );
@@ -145,7 +145,7 @@ export default function WorkoutsPage() {
           // If all days are completed, set to the last day
           if (nextActiveDayIndex === -1) {
             console.log('All days completed, setting to last day');
-            setCurrentDayIndex(workoutPlan.days.length - 1);
+            setCurrentDayIndex(workoutPlan.plan.days.length - 1);
           } else {
             console.log('Setting current day index to:', nextActiveDayIndex);
             setCurrentDayIndex(nextActiveDayIndex);
@@ -191,7 +191,7 @@ export default function WorkoutsPage() {
       }
       
       // Find the first incomplete day
-      const nextActiveDayIndex = workoutPlan.days.findIndex((_, index) => {
+      const nextActiveDayIndex = workoutPlan.plan.days.findIndex((_, index) => {
         return !completedWorkouts.some((workout: CompletedWorkout) => 
           workout.dayIndex === index && 
           workout.workoutPlanId === workoutPlan.id
@@ -203,7 +203,7 @@ export default function WorkoutsPage() {
       // If all days are completed, set to the last day
       if (nextActiveDayIndex === -1) {
         console.log('All days completed, setting to last day');
-        setCurrentDayIndex(workoutPlan.days.length - 1);
+        setCurrentDayIndex(workoutPlan.plan.days.length - 1);
       } else {
         console.log('Setting current day index to:', nextActiveDayIndex);
         setCurrentDayIndex(nextActiveDayIndex);
@@ -326,7 +326,7 @@ export default function WorkoutsPage() {
       setCompletedWorkouts(updatedCompletedWorkouts);
 
       // Find the next incomplete day
-      const nextIncompleteDayIndex = workoutPlan.days.findIndex((_, index) => {
+      const nextIncompleteDayIndex = workoutPlan.plan.days.findIndex((_, index) => {
         return !updatedCompletedWorkouts.some(workout => 
           workout.dayIndex === index && 
           workout.workoutPlanId === workoutPlan.id
@@ -338,7 +338,7 @@ export default function WorkoutsPage() {
         setCurrentDayIndex(nextIncompleteDayIndex);
       } else {
         // All days completed
-        setCurrentDayIndex(workoutPlan.days.length - 1);
+        setCurrentDayIndex(workoutPlan.plan.days.length - 1);
       }
 
       // Show success message
@@ -366,8 +366,8 @@ export default function WorkoutsPage() {
         },
         body: JSON.stringify({
           dayIndex,
-          totalDays: workoutPlan?.days.length,
-          workoutType: workoutPlan?.days[dayIndex]?.focus || 'general training',
+          totalDays: workoutPlan?.plan.days.length,
+          workoutType: workoutPlan?.plan.days[dayIndex]?.focus || 'general training',
         }),
       });
 
@@ -552,7 +552,7 @@ export default function WorkoutsPage() {
                     </p>
                   </div>
                 </motion.div>
-              ) : planGenerated && workoutPlan && workoutPlan.days && workoutPlan.days.length > 0 ? (
+              ) : planGenerated && workoutPlan && workoutPlan.plan && workoutPlan.plan.days && workoutPlan.plan.days.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -560,29 +560,29 @@ export default function WorkoutsPage() {
                 className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6"
               >
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    {workoutPlan.name || 'Your Workout Plan'}
+                    Your {workoutPlan.metadata.fitnessLevel} Level Workout Plan
                 </h2>
                   <p className="text-gray-600 dark:text-gray-300 mb-6">
-                    {workoutPlan.description || 'Personalized workout plan based on your goals and fitness level'}
+                    A personalized {workoutPlan.metadata.goal} focused plan for {workoutPlan.metadata.daysPerWeek} days per week
                   </p>
                   
                   {/* Progress indicator */}
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Progress: {completedWorkouts.length} / {workoutPlan.days.length} days completed
+                        Progress: {completedWorkouts.length} / {workoutPlan.plan.days.length} days completed
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
                       <div 
                         className="bg-green-600 h-2.5 rounded-full transition-all duration-500"
-                        style={{ width: `${(completedWorkouts.length / workoutPlan.days.length) * 100}%` }}
+                        style={{ width: `${(completedWorkouts.length / workoutPlan.plan.days.length) * 100}%` }}
                       ></div>
                     </div>
                   </div>
 
                 <div className="space-y-6">
-                  {workoutPlan.days.map((day, index) => (
+                  {workoutPlan.plan.days.map((day, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, y: 20 }}
@@ -606,7 +606,7 @@ export default function WorkoutsPage() {
                               {day.name}
                       </h3>
                             <p className="text-sm text-gray-500">
-                              Day {index + 1} of {workoutPlan.days.length}
+                              Day {index + 1} of {workoutPlan.plan.days.length}
                             </p>
                           </div>
                           <div className="flex items-center space-x-2">
