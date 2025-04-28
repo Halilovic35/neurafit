@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { verify } from 'jsonwebtoken';
@@ -919,12 +921,71 @@ async function generateWorkoutPlan(params: {
 }): Promise<WorkoutPlan> {
   const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek, bmi, bmiCategory } = params;
 
-  // Generate the workout plan structure
+  // Determine focus area based on goal
+  let focusArea = 'Full Body';
+  if (goal.toLowerCase().includes('upper')) focusArea = 'Upper Body & Core';
+  else if (goal.toLowerCase().includes('lower')) focusArea = 'Lower Body & Core';
+  else if (goal.toLowerCase().includes('endurance') || goal.toLowerCase().includes('cardio')) focusArea = 'Endurance & Cardio';
+
+  // Get exercises for the focus area and fitness level
+  const availableExercises = exercisesByFocus[focusArea]?.[fitnessLevel] || exercisesByFocus['Full Body'][fitnessLevel];
+
+  // Generate days based on daysPerWeek
+  const days: WorkoutDay[] = [];
+  for (let i = 0; i < daysPerWeek; i++) {
+    // Cycle through available exercises for variety
+    const exercise = availableExercises[i % availableExercises.length];
+    const progression = calculateProgression(fitnessLevel, bmiCategory as BMICategory, goal, 1);
+    const exerciseWithProgression = {
+      ...exercise,
+      sets: progression.sets,
+      reps: progression.reps,
+      restTime: progression.restTime
+    };
+
+    const day: WorkoutDay = {
+      dayNumber: i + 1,
+      exercises: [exerciseWithProgression],
+      warmup: {
+        duration: '10 minutes',
+        exercises: [
+          {
+            name: 'Light Jogging',
+            duration: '5 minutes',
+            description: 'Increase heart rate'
+          },
+          {
+            name: 'Dynamic Stretching',
+            duration: '5 minutes',
+            description: 'Arm circles, leg swings, hip rotations'
+          }
+        ]
+      },
+      cooldown: {
+        duration: '5 minutes',
+        exercises: [
+          {
+            name: 'Static Stretching',
+            duration: '5 minutes',
+            description: 'Cool down and stretch major muscle groups'
+          }
+        ]
+      }
+    };
+    days.push(day);
+  }
+
+  // Build the workout plan
   const workoutPlan: WorkoutPlan = {
     userId: 'test-user-id',
     plan: {
-      days: [],
-      focusAreas: [],
+      days,
+      focusAreas: [
+        {
+          name: goal === 'weight_loss' ? 'Fat Loss' : 'Muscle Building',
+          priority: 'high'
+        }
+      ],
       progression: {
         level: fitnessLevel,
         weekNumber: 1
@@ -940,59 +1001,12 @@ async function generateWorkoutPlan(params: {
     }
   };
 
-  // Generate days based on daysPerWeek
-  for (let i = 0; i < daysPerWeek; i++) {
-    const day: WorkoutDay = {
-      dayNumber: i + 1,
-      exercises: [],
-      warmup: {
-        duration: "10-15 minutes",
-        exercises: [
-          {
-            name: "Light Cardio",
-            duration: "5 minutes",
-            description: "Light jogging or brisk walking"
-          },
-          {
-            name: "Dynamic Stretching",
-            duration: "5-10 minutes",
-            description: "Arm circles, leg swings, hip rotations"
-          }
-        ]
-      },
-      cooldown: {
-        duration: "10 minutes",
-        exercises: [
-          {
-            name: "Static Stretching",
-            duration: "5-10 minutes",
-            description: "Hold each stretch for 15-30 seconds"
-          }
-        ]
-      }
-    };
-
-    // Add exercises based on fitness level and goal
-    day.exercises.push({
-      name: "Sample Exercise",
-      sets: 3,
-      reps: 12,
-      restTime: 60,
-      intensity: "moderate",
-      notes: "Focus on form",
-      description: "Fundamental lower body exercise that targets multiple muscle groups"
-    });
-
-    workoutPlan.plan.days.push(day);
+  // Validate the plan
+  const validation = validateWorkoutPlan(workoutPlan);
+  if (!validation.isValid) {
+    // Fallback to a basic plan if validation fails
+    return generateFallbackPlan(daysPerWeek.toString(), goal, fitnessLevel, bmiCategory as BMICategory);
   }
-
-  // Add focus areas based on goal
-  workoutPlan.plan.focusAreas = [
-    {
-      name: goal === 'weight_loss' ? 'Fat Loss' : 'Muscle Building',
-      priority: 'high'
-    }
-  ];
 
   return workoutPlan;
 }

@@ -2,8 +2,8 @@ import '@testing-library/jest-dom';
 import { TextEncoder, TextDecoder } from 'util';
 import { jest } from '@jest/globals';
 
-global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder;
+global.TextEncoder = TextEncoder as any;
+global.TextDecoder = TextDecoder as any;
 
 // Mock the next/router
 // jest.mock('next/router', () => ({
@@ -74,6 +74,7 @@ jest.mock('@/lib/openai', () => {
   const mockOpenAI = {
     chat: {
       completions: {
+        // @ts-ignore
         create: jest.fn().mockResolvedValue({
           choices: [{
             message: {
@@ -113,7 +114,7 @@ jest.mock('@/lib/openai', () => {
               })
             }
           }]
-        })
+        }) as any
       }
     }
   };
@@ -132,7 +133,7 @@ jest.mock('@/lib/prisma', () => {
         userId: 'test-user-id',
         createdAt: new Date(),
         updatedAt: new Date(),
-        ...data.data,
+        ...((data as any).data),
       })),
       findUnique: jest.fn().mockImplementation(() => Promise.resolve({
         id: 'test-id',
@@ -147,7 +148,7 @@ jest.mock('@/lib/prisma', () => {
         email: 'test@example.com',
         createdAt: new Date(),
         updatedAt: new Date(),
-        ...data.data,
+        ...((data as any).data),
       })),
       findUnique: jest.fn().mockImplementation(() => Promise.resolve({
         id: 'test-user-id',

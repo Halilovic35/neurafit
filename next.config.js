@@ -27,6 +27,8 @@ const nextConfig = {
   publicRuntimeConfig: {
     APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
+  // Enable standalone output for Docker
+  output: 'standalone',
 };
 
 module.exports = nextConfig; 
