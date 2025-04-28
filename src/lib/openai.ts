@@ -1,8 +1,4 @@
 import OpenAI from 'openai';
-import getConfig from 'next/config';
-
-// Get server runtime config
-const { serverRuntimeConfig } = getConfig();
 
 // Initialize OpenAI client
 let openai: OpenAI | null = null;
@@ -12,18 +8,16 @@ try {
   if (apiKey) {
     const config: any = {
       apiKey,
+      baseURL: 'https://openai-proxy-production-c359.up.railway.app/openai/v1',
+      defaultHeaders: {
+        'Content-Type': 'application/json',
+      },
+      defaultQuery: undefined,
       timeout: 30000,
       maxRetries: 3,
     };
     
-    // Only add baseURL if we're in production
-    if (process.env.NODE_ENV === 'production') {
-      config.baseURL = 'https://openai-proxy-production-c359.up.railway.app/openai/v1';
-      console.log('OpenAI client initialized with proxy baseURL:', config.baseURL);
-    } else {
-      console.log('OpenAI client initialized with default baseURL');
-    }
-    
+    console.log('Initializing OpenAI client with proxy URL');
     openai = new OpenAI(config);
   } else {
     console.error('OPENAI_API_KEY is not set!');
