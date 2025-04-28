@@ -1068,27 +1068,51 @@ function generateBasicMeals(
 
 // Add input validation function
 function validateMealPlanInput(body: any): { isValid: boolean; error?: string } {
-  const requiredFields = ['age', 'weight', 'height', 'goal', 'activityLevel', 'mealsPerDay', 'gender'];
-  for (const field of requiredFields) {
-    if (!body[field]) {
-      return { isValid: false, error: `Missing required field: ${field}` };
-    }
+  const {
+    age,
+    weight,
+    height,
+    gender,
+    activityLevel,
+    goal,
+    restrictions,
+    mealsPerDay
+  } = body;
+
+  // Check if required fields are present
+  if (!age || !weight || !height || !gender || !activityLevel || !goal || !mealsPerDay) {
+    return { isValid: false, error: 'Missing required fields' };
   }
-  const numericFields = ['age', 'weight', 'height', 'mealsPerDay'];
-  for (const field of numericFields) {
-    const value = parseFloat(body[field]);
-    if (isNaN(value) || value <= 0) {
-      return { isValid: false, error: `Invalid ${field}: must be a positive number` };
-    }
+
+  // Validate numeric values
+  if (isNaN(Number(age)) || Number(age) <= 0) {
+    return { isValid: false, error: 'Age must be a positive number' };
   }
-  const mealsPerDay = parseInt(body.mealsPerDay);
-  if (mealsPerDay < 2 || mealsPerDay > 6) {
+  if (isNaN(Number(weight)) || Number(weight) <= 0) {
+    return { isValid: false, error: 'Weight must be a positive number' };
+  }
+  if (isNaN(Number(height)) || Number(height) <= 0) {
+    return { isValid: false, error: 'Height must be a positive number' };
+  }
+  if (isNaN(Number(mealsPerDay)) || Number(mealsPerDay) < 2 || Number(mealsPerDay) > 6) {
     return { isValid: false, error: 'Meals per day must be between 2 and 6' };
   }
-  const validActivityLevels = ['sedentary', 'light', 'moderate', 'active', 'very active', 'Light Activity', 'Moderate Activity', 'Very Active'];
-  if (!validActivityLevels.includes(body.activityLevel)) {
+
+  // Validate gender
+  if (!['male', 'female', 'other'].includes(gender.toLowerCase())) {
+    return { isValid: false, error: 'Invalid gender value' };
+  }
+
+  // Validate activity level
+  if (!['sedentary', 'light', 'moderate', 'active', 'very_active'].includes(activityLevel.toLowerCase())) {
     return { isValid: false, error: 'Invalid activity level' };
   }
+
+  // Validate goal
+  if (!['weight_loss', 'maintenance', 'muscle_gain'].includes(goal.toLowerCase())) {
+    return { isValid: false, error: 'Invalid goal' };
+  }
+
   return { isValid: true };
 }
 
@@ -1134,157 +1158,91 @@ function calculateTargetCalories(tdee: number, goal: Goal): number {
 
 export async function POST(req: Request) {
   try {
+    // Get user from authentication token
+    let userId = 'anonymous'; // Default to anonymous user
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+
+      if (token) {
+        const decoded = verify(token, JWT_SECRET) as { id: string };
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.id }
+        });
+        if (user) {
+          userId = user.id;
+        }
+      }
+    } catch (authError) {
+      console.error('Authentication error:', authError);
+      // Continue with anonymous user
+    }
+
     const body = await req.json();
+    console.log('Received request body:', body);
+
+    // Validate input
     const validation = validateMealPlanInput(body);
     if (!validation.isValid) {
-      return NextResponse.json({ error: validation.error }, { status: 400 });
-    }
-    // Get the token from cookies
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-    
-    if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
+        { error: validation.error },
+        { status: 400 }
       );
     }
 
-    // Verify token and get user
-    const decoded = verify(token, JWT_SECRET) as { id: string };
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      include: { profile: true },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    // Get request data
     const {
       age,
       weight,
       height,
-      goal,
+      gender,
       activityLevel,
-      mealsPerDay,
-      restrictions = []
+      goal,
+      restrictions = [],
+      mealsPerDay
     } = body;
 
     // Calculate BMI and daily calorie needs
-    const bmi = calculateBMI(parseFloat(weight), parseFloat(height));
+    const bmi = calculateBMI(Number(weight), Number(height));
     const bmiCategory = getBMICategory(bmi);
     const dailyCalories = calculateDailyCalories(
-      parseFloat(weight),
-      parseFloat(height),
+      Number(weight),
+      Number(height),
       activityLevel,
       goal,
-      parseInt(age)  // Add age to calorie calculation
+      Number(age)
     );
 
-    // Generate the system prompt
-    const systemPrompt = generateSystemPrompt(
+    // Generate meal plan
+    const mealPlan = generateFallbackMealPlan(
+      age.toString(),
+      weight.toString(),
+      height.toString(),
+      goal,
+      activityLevel,
+      restrictions,
+      mealsPerDay.toString()
+    );
+
+    // Save to database
+    const savedPlan = await savePlanToDatabase(mealPlan, userId, {
+      bmi,
+      bmiCategory,
       dailyCalories,
-      mealsPerDay,
       goal,
       restrictions,
-      bmiCategory
-    );
+      mealsPerDay: Number(mealsPerDay)
+    });
 
-    // Check if OpenAI client is available
-    if (!openai) {
-      throw new Error('OpenAI client is not initialized');
-    }
+    return NextResponse.json({
+      mealPlan,
+      planId: savedPlan.id
+    });
 
-    try {
-      // Make the API call to OpenAI
-      const messages: ChatCompletionMessageParam[] = [
-        { 
-          role: "system", 
-          content: systemPrompt
-        },
-        { 
-          role: "user", 
-          content: `Generate a meal plan for ${mealsPerDay} meals per day, targeting ${dailyCalories} calories, with a focus on ${goal}. Consider BMI category: ${bmiCategory} and dietary restrictions: ${restrictions.join(', ') || 'none'}. RESPOND WITH ONLY JSON.` 
-        }
-      ];
-
-      console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
-
-      const timeoutMs = 30000; // 30 seconds timeout
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
-      });
-
-      const openaiPromise = openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages,
-        temperature: 0.7,
-        max_tokens: 2000,
-        stream: false // Explicitly set stream to false
-      });
-
-      // Race between the OpenAI request and timeout
-      const response = await Promise.race([openaiPromise, timeoutPromise]) as Awaited<typeof openaiPromise>;
-      
-      if (!response || !response.choices || response.choices.length === 0) {
-        throw new Error('No valid response from OpenAI');
-      }
-
-      const content = response.choices[0].message.content;
-      if (!content) {
-        throw new Error('No content in OpenAI response');
-      }
-
-      try {
-        const mealPlan = JSON.parse(content);
-        // Save the plan to database
-        await savePlanToDatabase(mealPlan, user.id, {
-          bmi,
-          bmiCategory,
-          goal,
-          activityLevel,
-          daysPerWeek: 7 // Default to 7 days for meal plans
-        });
-
-        return NextResponse.json(mealPlan);
-      } catch (parseError) {
-        console.error('Failed to parse OpenAI response:', parseError);
-        console.error('Raw response:', content);
-        throw new Error('Invalid JSON response from OpenAI');
-      }
-    } catch (error: any) {
-      console.error('Error generating meal plan:', error);
-      // Log detailed error information
-      console.error('Error details:', {
-        status: error.status,
-        message: error.message,
-        code: error.code,
-        type: error.type
-      });
-
-      // Return a fallback meal plan if OpenAI fails
-      const fallbackPlan = generateFallbackMealPlan(
-        age,
-        weight,
-        height,
-        goal,
-        activityLevel,
-        restrictions,
-        mealsPerDay
-      );
-      
-      return NextResponse.json(fallbackPlan);
-    }
   } catch (error: any) {
-    console.error('Error in meal plan endpoint:', error);
+    console.error('Error generating meal plan:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to process request' },
-      { status: 500 }
+      { error: error.message || 'Failed to generate meal plan' },
+      { status: error.status || 500 }
     );
   }
 }

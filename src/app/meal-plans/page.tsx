@@ -106,9 +106,9 @@ export default function MealPlansPage() {
     age: '',
     weight: '',
     height: '',
-    gender: '',
-    activityLevel: '',
-    goal: '',
+    gender: 'male',
+    activityLevel: 'light',
+    goal: 'weight_loss',
     restrictions: [],
     preferences: [],
     mealsPerDay: '3'
@@ -121,6 +121,20 @@ export default function MealPlansPage() {
     { value: 'dairy-free', label: 'Dairy Free' },
     { value: 'keto', label: 'Keto' },
     { value: 'paleo', label: 'Paleo' },
+  ];
+
+  const activityLevels = [
+    { value: 'sedentary', label: 'Sedentary' },
+    { value: 'light', label: 'Light Activity' },
+    { value: 'moderate', label: 'Moderate Activity' },
+    { value: 'active', label: 'Active' },
+    { value: 'very_active', label: 'Very Active' }
+  ];
+
+  const goals = [
+    { value: 'weight_loss', label: 'Weight Loss' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'muscle_gain', label: 'Muscle Gain' }
   ];
 
   const handleDietaryChange = (value: string) => {
@@ -174,24 +188,54 @@ export default function MealPlansPage() {
     setMealPlan(null);
 
     try {
+      // Validate numeric values
+      const age = parseInt(formData.age);
+      const weight = parseFloat(formData.weight);
+      const height = parseFloat(formData.height);
+      const mealsPerDay = parseInt(formData.mealsPerDay);
+
+      if (isNaN(age) || age <= 0) {
+        throw new Error('Age must be a positive number');
+      }
+      if (isNaN(weight) || weight <= 0) {
+        throw new Error('Weight must be a positive number');
+      }
+      if (isNaN(height) || height <= 0) {
+        throw new Error('Height must be a positive number');
+      }
+      if (isNaN(mealsPerDay) || mealsPerDay < 2 || mealsPerDay > 6) {
+        throw new Error('Meals per day must be between 2 and 6');
+      }
+
       const response = await fetch('/api/generate-meal-plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          age,
+          weight,
+          height,
+          gender: formData.gender,
+          activityLevel: formData.activityLevel,
+          goal: formData.goal,
+          restrictions: formData.restrictions,
+          mealsPerDay
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate meal plan');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate meal plan');
       }
 
       const data = await response.json();
       setMealPlan(data.mealPlan);
-      router.push(`/meal-plans/${data.planId}`);
       toast.success('Meal plan generated successfully!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const message = err instanceof Error ? err.message : 'Failed to generate meal plan';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -217,29 +261,29 @@ export default function MealPlansPage() {
             >
               <Input
                 label="Age"
-                  type="number"
+                type="number"
                 name="age"
-                  value={formData.age}
+                value={formData.age}
                 onChange={(e) => handleInputChange('age', e)}
-                  required
+                required
                 isLoading={isLoading}
               />
 
               <Input
                 label="Weight (kg)"
-                  type="number"
+                type="number"
                 name="weight"
-                  value={formData.weight}
+                value={formData.weight}
                 onChange={(e) => handleInputChange('weight', e)}
-                  required
+                required
                 isLoading={isLoading}
               />
 
               <Input
                 label="Height (cm)"
-                  type="number"
+                type="number"
                 name="height"
-                  value={formData.height}
+                value={formData.height}
                 onChange={(e) => handleInputChange('height', e)}
                 required
                 isLoading={isLoading}
@@ -262,25 +306,16 @@ export default function MealPlansPage() {
                 label="Activity Level"
                 value={formData.activityLevel}
                 onChange={(value) => handleSelectChange('activityLevel', value)}
-                options={[
-                  { value: 'sedentary', label: 'Sedentary' },
-                  { value: 'light', label: 'Light Activity' },
-                  { value: 'moderate', label: 'Moderate Activity' },
-                  { value: 'active', label: 'Very Active' }
-                ]}
-                  required
+                options={activityLevels}
+                required
                 isLoading={isLoading}
               />
 
               <Select
                 label="Goal"
-                  value={formData.goal}
+                value={formData.goal}
                 onChange={(value) => handleSelectChange('goal', value)}
-                options={[
-                  { value: 'lose-weight', label: 'Lose Weight' },
-                  { value: 'maintain', label: 'Maintain Weight' },
-                  { value: 'gain-weight', label: 'Gain Weight' }
-                ]}
+                options={goals}
                 required
                 isLoading={isLoading}
               />
@@ -288,7 +323,7 @@ export default function MealPlansPage() {
               <Select
                 label="Meals per Day"
                 value={formData.mealsPerDay}
-                onChange={handleMealsPerDayChange}
+                onChange={(value) => handleSelectChange('mealsPerDay', value)}
                 options={[
                   { value: '3', label: '3 Meals' },
                   { value: '4', label: '4 Meals' },
@@ -299,28 +334,23 @@ export default function MealPlansPage() {
                 isLoading={isLoading}
               />
 
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Dietary Restrictions
-                </label>
+              <div className="space-y-2">
+                <Label>Dietary Restrictions</Label>
                 <div className="grid grid-cols-2 gap-4">
                   {dietaryOptions.map((option) => (
-                    <div key={option.value} className="flex items-center">
+                    <label
+                      key={option.value}
+                      className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300"
+                    >
                       <input
                         type="checkbox"
-                        id={option.value}
                         checked={formData.restrictions.includes(option.value)}
                         onChange={() => handleDietaryChange(option.value)}
                         disabled={isLoading}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <label
-                        htmlFor={option.value}
-                        className="ml-2 block text-sm text-gray-700 dark:text-gray-200"
-                      >
-                        {option.label}
+                      <span>{option.label}</span>
                     </label>
-                    </div>
                   ))}
                 </div>
               </div>
