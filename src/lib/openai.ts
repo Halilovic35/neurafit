@@ -8,7 +8,7 @@ try {
   if (apiKey) {
     const config: any = {
       apiKey,
-      baseURL: 'https://openai-proxy-production-c359.up.railway.app/openai/v1',
+      baseURL: 'https://openai-proxy-production-c359.up.railway.app',
       defaultHeaders: {
         'Content-Type': 'application/json',
       },
