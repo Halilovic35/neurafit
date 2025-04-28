@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { verify } from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import openai from '@/lib/openai';
 
@@ -884,25 +884,33 @@ async function savePlanToDatabase(
   }
 ) {
   try {
-    // Flatten the workout plan for Prisma
+    // Save to database
     const planData = {
       userId,
-      name: 'Generated Plan', // Add a name for Prisma
+      name: `Workout Plan - Week ${metadata.weekNumber}`,
+      description: `Custom workout plan for ${metadata.goal} - ${metadata.fitnessLevel} level`,
+      exercises: JSON.stringify(workoutPlan.plan.days.map(day => ({
+        dayNumber: day.dayNumber,
+        exercises: day.exercises,
+        warmup: day.warmup,
+        cooldown: day.cooldown
+      }))),
+      planJson: JSON.stringify(workoutPlan.plan),
       bmi: metadata.bmi,
       bmiCategory: metadata.bmiCategory,
       fitnessLevel: metadata.fitnessLevel,
       goal: metadata.goal,
       daysPerWeek: metadata.daysPerWeek,
-      weekNumber: metadata.weekNumber,
-      planJson: workoutPlan.plan // Store the full plan as JSON (make sure your schema has a planJson field of type Json)
+      weekNumber: metadata.weekNumber
     };
-    // Save to database
-    const savedPlan = await prisma.workoutPlan.create({
+
+    const savePlan = await prisma.workoutPlan.create({
       data: planData
     });
-    return savedPlan;
+
+    return savePlan;
   } catch (error) {
-    console.error('Error saving workout plan to database:', error);
+    console.error('Error saving workout plan:', error);
     throw error;
   }
 }
