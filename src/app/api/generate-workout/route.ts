@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { verify } from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
-import type { Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import openai from '@/lib/openai';
 
@@ -884,31 +884,45 @@ async function savePlanToDatabase(
   }
 ) {
   try {
-    // Transform exercises into array of JSON objects
-    const exercisesArray = workoutPlan.plan.days.map(day => ({
-      dayNumber: day.dayNumber,
-      exercises: day.exercises,
-      warmup: day.warmup,
-      cooldown: day.cooldown
-    }));
+    // Transform exercises into array of JSON objects that matches Prisma's InputJsonValue type
+    const exercisesArray = workoutPlan.plan.days.map(day => {
+      return {
+        dayNumber: day.dayNumber,
+        exercises: day.exercises.map(ex => ({
+          name: ex.name,
+          sets: ex.sets,
+          reps: ex.reps,
+          restTime: ex.restTime,
+          description: ex.description,
+          intensity: ex.intensity,
+          notes: ex.notes,
+          difficulty: ex.difficulty,
+          equipment: ex.equipment,
+          muscles: ex.muscles,
+          setup: ex.setup,
+          execution: ex.execution,
+          progression: ex.progression
+        })),
+        warmup: day.warmup,
+        cooldown: day.cooldown
+      };
+    });
 
-    // Save to database
-    const planData = {
-      userId,
-      name: `Workout Plan - Week ${metadata.weekNumber}`,
-      description: `Custom workout plan for ${metadata.goal} - ${metadata.fitnessLevel} level`,
-      exercises: exercisesArray, // Now passing as array of JSON objects
-      planJson: workoutPlan.plan, // This is already a JSON object
-      bmi: metadata.bmi,
-      bmiCategory: metadata.bmiCategory,
-      fitnessLevel: metadata.fitnessLevel,
-      goal: metadata.goal,
-      daysPerWeek: metadata.daysPerWeek,
-      weekNumber: metadata.weekNumber
-    };
-
+    // Save to database using Prisma's expected types
     const savePlan = await prisma.workoutPlan.create({
-      data: planData
+      data: {
+        userId,
+        name: `Workout Plan - Week ${metadata.weekNumber}`,
+        description: `Custom workout plan for ${metadata.goal} - ${metadata.fitnessLevel} level`,
+        exercises: exercisesArray as any[], // Cast to any[] to match Prisma's Json[] type
+        planJson: workoutPlan.plan as any, // Cast to any to match Prisma's Json type
+        bmi: metadata.bmi,
+        bmiCategory: metadata.bmiCategory,
+        fitnessLevel: metadata.fitnessLevel,
+        goal: metadata.goal,
+        daysPerWeek: metadata.daysPerWeek,
+        weekNumber: metadata.weekNumber
+      }
     });
 
     return savePlan;
