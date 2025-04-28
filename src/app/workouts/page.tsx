@@ -217,6 +217,11 @@ export default function WorkoutsPage() {
     setError(null);
 
     try {
+      // Reset completed workouts and clear local storage
+      setCompletedWorkouts([]);
+      localStorage.removeItem('completedWorkouts');
+      localStorage.removeItem('hasGeneratedPlan');
+
       // Convert string values to numbers where needed
       const requestData = {
         age: parseInt(formData.age),
@@ -224,7 +229,7 @@ export default function WorkoutsPage() {
         weight: parseFloat(formData.weight),
         gender: formData.gender,
         goal: formData.goal,
-        fitnessLevel: formData.fitnessLevel.toLowerCase(), // Convert to lowercase to match API expectations
+        fitnessLevel: formData.fitnessLevel,
         daysPerWeek: parseInt(formData.daysPerWeek)
       };
 
@@ -247,94 +252,34 @@ export default function WorkoutsPage() {
         throw new Error('Weight must be between 30kg and 300kg');
       }
 
-      // Reset completed workouts BEFORE generating a new workout plan
-      console.log('Resetting completed workouts for new workout plan');
-      console.log('Previous completed workouts:', completedWorkouts);
-      setCompletedWorkouts([]);
-      localStorage.removeItem('completedWorkouts');
-      console.log('Completed workouts reset to empty array');
-
       const response = await fetch('/api/generate-workout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify(requestData)
       });
-
-      const data = await response.json();
-      
-      // Log raw response data for debugging
-      console.log('Received response:', data);
 
       if (!response.ok) {
-        console.error('API Error:', data);
-        throw new Error(data.error || data.details || 'Failed to generate workout plan');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate workout plan');
       }
 
-      // Detailed response validation
-      if (!data) {
-        console.error('Empty response received');
-        throw new Error('Server returned empty response');
+      const data = await response.json();
+      console.log('Received workout plan:', data);
+
+      if (!data || !data.plan || !data.plan.days || data.plan.days.length === 0) {
+        throw new Error('Invalid workout plan received');
       }
 
-      if (!data.days) {
-        console.error('Response missing days array:', data);
-        throw new Error('Workout plan is missing required data');
-      }
-
-      if (!Array.isArray(data.days)) {
-        console.error('Days is not an array:', typeof data.days);
-        throw new Error('Invalid workout plan format');
-      }
-
-      if (data.days.length === 0) {
-        console.error('Days array is empty');
-        throw new Error('No workout days generated');
-      }
-
-      // Validate each day's data structure with detailed error messages
-      const validateDay = (day: any, index: number): string[] => {
-        const errors: string[] = [];
-        if (!day) errors.push(`Day ${index + 1} is undefined`);
-        if (!day.name) errors.push(`Day ${index + 1} is missing a name`);
-        if (!day.focus) errors.push(`Day ${index + 1} is missing a focus area`);
-        if (!Array.isArray(day.exercises)) errors.push(`Day ${index + 1} has invalid exercises`);
-        if (!day.warmup?.exercises) errors.push(`Day ${index + 1} is missing warmup exercises`);
-        if (!day.cooldown?.exercises) errors.push(`Day ${index + 1} is missing cooldown exercises`);
-        return errors;
-      };
-
-      const dayValidationErrors: string[] = [];
-      data.days.forEach((day: any, index: number) => {
-        const errors = validateDay(day, index);
-        dayValidationErrors.push(...errors);
-      });
-
-      if (dayValidationErrors.length > 0) {
-        console.error('Day validation errors:', dayValidationErrors);
-        throw new Error(`Invalid workout plan structure: ${dayValidationErrors[0]}`);
-      }
-
-      // If all validation passes, update the state
       setWorkoutPlan(data);
-      setCurrentDayIndex(0);
-      
-      // Save to localStorage after validation
-      console.log('Saving workout plan to localStorage:', data);
-      localStorage.setItem('currentWorkoutPlan', JSON.stringify(data));
-      localStorage.setItem('hasGeneratedPlan', 'true');
-
-      // Log success
-      console.log('Successfully generated and validated workout plan');
-
       setPlanGenerated(true);
-    } catch (error) {
+      localStorage.setItem('hasGeneratedPlan', 'true');
+      toast.success('Workout plan generated successfully!');
+    } catch (error: any) {
       console.error('Error generating workout plan:', error);
-      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
-      // Clear invalid workout plan
-      setWorkoutPlan(null);
-      localStorage.removeItem('currentWorkoutPlan');
+      setError(error.message || 'Failed to generate workout plan');
+      toast.error(error.message || 'Failed to generate workout plan');
     } finally {
       setIsLoading(false);
     }
