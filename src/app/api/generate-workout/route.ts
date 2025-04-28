@@ -3,8 +3,7 @@ dotenv.config();
 import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { verify } from 'jsonwebtoken';
-import prisma from '@/lib/prisma';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import openai from '@/lib/openai';
 
@@ -959,26 +958,27 @@ async function generateWorkoutPlan(params: {
   // Generate days based on daysPerWeek
   const days: WorkoutDay[] = [];
   for (let i = 0; i < daysPerWeek; i++) {
-    // Cycle through available exercises for variety
-    const exercise = availableExercises[i % availableExercises.length];
-    const progression = calculateProgression(fitnessLevel, bmiCategory as BMICategory, goal, 1);
-    const exerciseWithProgression = {
-      ...exercise,
-      sets: progression.sets,
-      reps: progression.reps,
-      restTime: progression.restTime
-    };
+    // Get multiple exercises for each day
+    const dayExercises = availableExercises.slice(0, 4).map(exercise => {
+      const progression = calculateProgression(fitnessLevel, bmiCategory as BMICategory, goal, 1);
+      return {
+        ...exercise,
+        sets: progression.sets,
+        reps: progression.reps,
+        restTime: progression.restTime
+      };
+    });
 
     const day: WorkoutDay = {
       dayNumber: i + 1,
-      exercises: [exerciseWithProgression],
+      exercises: dayExercises,
       warmup: {
         duration: '10 minutes',
         exercises: [
           {
             name: 'Light Jogging',
             duration: '5 minutes',
-            description: 'Increase heart rate'
+            description: 'Increase heart rate and warm up muscles'
           },
           {
             name: 'Dynamic Stretching',
@@ -1001,14 +1001,14 @@ async function generateWorkoutPlan(params: {
     days.push(day);
   }
 
-  // Build the workout plan
+  // Build the workout plan with all required fields
   const workoutPlan: WorkoutPlan = {
     userId,
     plan: {
       days,
       focusAreas: [
         {
-          name: goal === 'weight_loss' ? 'Fat Loss' : 'Muscle Building',
+          name: goal === 'weight-loss' ? 'Fat Loss' : 'Muscle Building',
           priority: 'high'
         }
       ],
@@ -1030,7 +1030,8 @@ async function generateWorkoutPlan(params: {
   // Validate the plan
   const validation = validateWorkoutPlan(workoutPlan);
   if (!validation.isValid) {
-    // Fallback to a basic plan if validation fails
+    console.error('Workout plan validation failed:', validation.errors);
+    // Return a basic fallback plan if validation fails
     return generateFallbackPlan(daysPerWeek.toString(), goal, fitnessLevel, bmiCategory as BMICategory);
   }
 
@@ -1083,7 +1084,40 @@ export async function POST(req: Request) {
       );
     }
 
-    const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek } = await req.json();
+    const body = await req.json();
+    
+    // Validate required fields
+    const requiredFields = ['age', 'height', 'weight', 'gender', 'fitnessLevel', 'goal', 'daysPerWeek'];
+    const missingFields = requiredFields.filter(field => !body[field]);
+    
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required fields: ${missingFields.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Type validation
+    const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek } = body;
+
+    if (typeof age !== 'number' || age <= 0) {
+      return NextResponse.json({ error: 'Age must be a positive number' }, { status: 400 });
+    }
+    if (typeof height !== 'number' || height <= 0) {
+      return NextResponse.json({ error: 'Height must be a positive number' }, { status: 400 });
+    }
+    if (typeof weight !== 'number' || weight <= 0) {
+      return NextResponse.json({ error: 'Weight must be a positive number' }, { status: 400 });
+    }
+    if (typeof daysPerWeek !== 'number' || daysPerWeek < 1 || daysPerWeek > 7) {
+      return NextResponse.json({ error: 'Days per week must be between 1 and 7' }, { status: 400 });
+    }
+    if (!['male', 'female', 'other'].includes(gender.toLowerCase())) {
+      return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 });
+    }
+    if (!['beginner', 'intermediate', 'advanced'].includes(fitnessLevel.toLowerCase())) {
+      return NextResponse.json({ error: 'Invalid fitness level' }, { status: 400 });
+    }
     
     // Calculate BMI
     const bmi = calculateBMI(weight, height);
@@ -1095,12 +1129,12 @@ export async function POST(req: Request) {
       height,
       weight,
       gender,
-      fitnessLevel,
+      fitnessLevel: fitnessLevel.toLowerCase() as FitnessLevel,
       goal,
       daysPerWeek,
       bmi,
       bmiCategory,
-      userId // Pass the user ID to the plan generator
+      userId
     });
 
     // Save to database with the correct user ID
@@ -1114,11 +1148,11 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(savedPlan);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating workout plan:', error);
     return NextResponse.json(
-      { error: 'Failed to generate workout plan' },
-      { status: 500 }
+      { error: error.message || 'Failed to generate workout plan' },
+      { status: error.status || 500 }
     );
   }
 }
