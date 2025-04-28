@@ -884,18 +884,21 @@ async function savePlanToDatabase(
   }
 ) {
   try {
+    // Transform exercises into array of JSON objects
+    const exercisesArray = workoutPlan.plan.days.map(day => ({
+      dayNumber: day.dayNumber,
+      exercises: day.exercises,
+      warmup: day.warmup,
+      cooldown: day.cooldown
+    }));
+
     // Save to database
     const planData = {
       userId,
       name: `Workout Plan - Week ${metadata.weekNumber}`,
       description: `Custom workout plan for ${metadata.goal} - ${metadata.fitnessLevel} level`,
-      exercises: JSON.stringify(workoutPlan.plan.days.map(day => ({
-        dayNumber: day.dayNumber,
-        exercises: day.exercises,
-        warmup: day.warmup,
-        cooldown: day.cooldown
-      }))),
-      planJson: JSON.stringify(workoutPlan.plan),
+      exercises: exercisesArray, // Now passing as array of JSON objects
+      planJson: workoutPlan.plan, // This is already a JSON object
       bmi: metadata.bmi,
       bmiCategory: metadata.bmiCategory,
       fitnessLevel: metadata.fitnessLevel,
