@@ -1147,7 +1147,8 @@ export async function POST(req: Request) {
       weekNumber: 1
     });
 
-    return NextResponse.json(savedPlan);
+    // Return the workout plan directly instead of the saved database record
+    return NextResponse.json(workoutPlan);
   } catch (error: any) {
     console.error('Error generating workout plan:', error);
     return NextResponse.json(

@@ -268,7 +268,7 @@ export default function WorkoutsPage() {
       const data = await response.json();
       console.log('Received workout plan:', data);
 
-      if (!data || !data.plan || !data.plan.days || data.plan.days.length === 0) {
+      if (!data || !data.plan || !Array.isArray(data.plan.days) || data.plan.days.length === 0) {
         throw new Error('Invalid workout plan received');
       }
 
