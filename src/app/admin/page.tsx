@@ -52,14 +52,14 @@ export default function AdminPage() {
 
   const handlePremiumStatus = async (userId: string, action: 'grant' | 'revoke') => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/premium`, {
+      const response = await fetch('/api/admin/premium', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          action,
-          durationInDays: action === 'grant' ? selectedDuration : undefined 
+          userId,
+          action: action === 'grant' ? 'activate' : 'deactivate'
         }),
       });
 

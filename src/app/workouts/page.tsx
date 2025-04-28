@@ -305,7 +305,7 @@ export default function WorkoutsPage() {
             dayIndex,
             completedAt,
             workoutPlanId: workoutPlan.id,
-            difficulty: formData.fitnessLevel,
+            difficulty: workoutPlan.metadata.fitnessLevel,
           },
         }),
       });
