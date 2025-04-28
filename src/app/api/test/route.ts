@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 
+export const runtime = 'nodejs';
+
 // Helper function to get CORS headers
 function getCorsHeaders() {
   const corsHeaders = {

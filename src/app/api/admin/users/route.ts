@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { verify } from 'jsonwebtoken';
 
+export const runtime = 'nodejs';
+
 interface UserProfile {
   id: string;
   userId: string;

@@ -14,17 +14,23 @@ try {
       apiKey,
       timeout: 30000,
       maxRetries: 3,
-      baseURL: 'https://openai-proxy-production-c359.up.railway.app/openai/v1'
     };
-    console.log('OpenAI client initialized with proxy baseURL:', config.baseURL);
-    console.log('OpenAI API key (first 10 chars):', apiKey.slice(0, 10));
+    
+    // Only add baseURL if we're in production
+    if (process.env.NODE_ENV === 'production') {
+      config.baseURL = 'https://openai-proxy-production-c359.up.railway.app/openai/v1';
+      console.log('OpenAI client initialized with proxy baseURL:', config.baseURL);
+    } else {
+      console.log('OpenAI client initialized with default baseURL');
+    }
+    
     openai = new OpenAI(config);
   } else {
     console.error('OPENAI_API_KEY is not set!');
   }
 } catch (e) {
-  openai = null;
   console.error('Failed to initialize OpenAI client:', e);
+  openai = null;
 }
 
 // Function to validate the OpenAI API key by making a test request
@@ -34,7 +40,6 @@ export async function validateOpenAIKey() {
   }
 
   try {
-    console.log('Validating OpenAI API key...');
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [{ role: 'user', content: 'Test' }],
@@ -59,5 +64,4 @@ export async function validateOpenAIKey() {
   }
 }
 
-// Export the OpenAI client
 export default openai; 

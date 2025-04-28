@@ -3,6 +3,7 @@ import { compare } from 'bcryptjs';
 import { sign } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { createAuthResponse } from '@/lib/auth';
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
