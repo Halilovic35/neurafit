@@ -943,8 +943,9 @@ async function generateWorkoutPlan(params: {
   daysPerWeek: number;
   bmi: number;
   bmiCategory: string;
+  userId: string;
 }): Promise<WorkoutPlan> {
-  const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek, bmi, bmiCategory } = params;
+  const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek, bmi, bmiCategory, userId } = params;
 
   // Determine focus area based on goal
   let focusArea = 'Full Body';
@@ -1002,7 +1003,7 @@ async function generateWorkoutPlan(params: {
 
   // Build the workout plan
   const workoutPlan: WorkoutPlan = {
-    userId: 'test-user-id',
+    userId,
     plan: {
       days,
       focusAreas: [
@@ -1038,13 +1039,57 @@ async function generateWorkoutPlan(params: {
 
 export async function POST(req: Request) {
   try {
+    // Get user from authentication token
+    let userId = 'anonymous'; // Default to anonymous user
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+
+      if (token) {
+        const decoded = verify(token, JWT_SECRET) as { id: string };
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.id }
+        });
+        if (user) {
+          userId = user.id;
+        }
+      }
+    } catch (authError) {
+      console.error('Authentication error:', authError);
+      // Continue with anonymous user
+    }
+
+    // Ensure we have a default user if needed
+    try {
+      const defaultUser = await prisma.user.findUnique({
+        where: { id: 'anonymous' }
+      });
+
+      if (!defaultUser) {
+        await prisma.user.create({
+          data: {
+            id: 'anonymous',
+            email: 'anonymous@example.com',
+            name: 'Anonymous User',
+            password: 'anonymous'
+          }
+        });
+      }
+    } catch (userError) {
+      console.error('Error ensuring default user:', userError);
+      return NextResponse.json(
+        { error: 'Failed to ensure user exists' },
+        { status: 500 }
+      );
+    }
+
     const { age, height, weight, gender, fitnessLevel, goal, daysPerWeek } = await req.json();
     
     // Calculate BMI
     const bmi = calculateBMI(weight, height);
     const bmiCategory = getBMICategory(bmi);
     
-    // Generate workout plan
+    // Generate workout plan with the correct user ID
     const workoutPlan = await generateWorkoutPlan({
       age,
       height,
@@ -1054,11 +1099,12 @@ export async function POST(req: Request) {
       goal,
       daysPerWeek,
       bmi,
-      bmiCategory
+      bmiCategory,
+      userId // Pass the user ID to the plan generator
     });
 
-    // Save to database
-    const savedPlan = await savePlanToDatabase(workoutPlan, 'test-user-id', {
+    // Save to database with the correct user ID
+    const savedPlan = await savePlanToDatabase(workoutPlan, userId, {
       bmi,
       bmiCategory,
       fitnessLevel,
