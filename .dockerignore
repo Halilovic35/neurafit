@@ -51,4 +51,8 @@ next-env.d.ts
 
 # Docker
 Dockerfile
-.dockerignore 
+.dockerignore
+
+# Additional files to exclude
+npm-debug.log
+README.md 
