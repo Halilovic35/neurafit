@@ -53,7 +53,7 @@ export interface FocusArea {
 }
 
 export interface WorkoutPlan {
-  id?: string;
+  id: string;
   userId: string;
   createdAt?: Date;
   updatedAt?: Date;

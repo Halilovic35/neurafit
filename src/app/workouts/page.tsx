@@ -286,8 +286,8 @@ export default function WorkoutsPage() {
   };
 
   const handleCompleteWorkout = async (dayIndex: number) => {
-    if (!workoutPlan) {
-      toast.error('No workout plan found');
+    if (!workoutPlan || !workoutPlan.id) {
+      toast.error('No valid workout plan found');
       return;
     }
 
@@ -316,6 +316,7 @@ export default function WorkoutsPage() {
       }
 
       const data = await response.json();
+      console.log('Workout completion response:', data);
       
       // Update completed workouts state
       const updatedCompletedWorkouts = [...completedWorkouts, { 
