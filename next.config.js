@@ -15,6 +15,9 @@ const nextConfig = {
     config.externals = [...config.externals, 'bcrypt'];
     return config;
   },
+  // Enable standalone output for Docker
+  output: 'standalone',
+  // Explicitly set environment variables
   env: {
     DATABASE_URL: process.env.DATABASE_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -27,8 +30,10 @@ const nextConfig = {
   publicRuntimeConfig: {
     APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
-  // Enable standalone output for Docker
-  output: 'standalone',
+  // Experimental features
+  experimental: {
+    serverActions: true,
+  },
 };
 
 module.exports = nextConfig; 
