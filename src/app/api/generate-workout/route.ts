@@ -890,8 +890,8 @@ async function savePlanToDatabase(
         exercises: day.exercises.map(ex => ({
           name: ex.name,
           sets: ex.sets,
-          reps: ex.reps,
-          restTime: ex.restTime,
+          reps: String(ex.reps), // UVEK string
+          restTime: String(ex.restTime), // UVEK string
           description: ex.description,
           intensity: ex.intensity,
           notes: ex.notes,
